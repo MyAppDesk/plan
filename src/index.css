@@ -103,6 +103,13 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/* native dropdowns follow the dark theme */
+select option,
+select optgroup {
+  background: #10141d;
+  color: #ccd3e0;
+}
+
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;

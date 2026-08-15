@@ -104,6 +104,55 @@ function round(v: number) {
   return Math.round(v * 1000) / 1000
 }
 
+export function Select({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label?: string
+  value: string
+  options: { value: string; label: string; group?: string }[]
+  onChange: (v: string) => void
+}) {
+  const groups = [...new Set(options.map((o) => o.group ?? ''))]
+  return (
+    <label className="block">
+      {label ? <span className="field-label">{label}</span> : null}
+      <div className="relative">
+        <select
+          className="field cursor-pointer appearance-none pr-7"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          {groups.map((g) =>
+            g ? (
+              <optgroup key={g} label={g}>
+                {options
+                  .filter((o) => (o.group ?? '') === g)
+                  .map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+              </optgroup>
+            ) : (
+              options
+                .filter((o) => !o.group)
+                .map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))
+            ),
+          )}
+        </select>
+        <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-mist-400">▾</span>
+      </div>
+    </label>
+  )
+}
+
 export function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
   return (
     <button

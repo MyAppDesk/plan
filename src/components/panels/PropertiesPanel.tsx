@@ -12,7 +12,39 @@ import {
   wallEnds,
   wallLength,
 } from '../../lib/geometry'
-import { ColorPicker, NumberField, Row, SegButtons, Section, TextField } from '../ui/fields'
+import { ColorPicker, NumberField, Row, SegButtons, Section, Select, TextField } from '../ui/fields'
+
+interface HeightPreset {
+  id: string
+  label: string
+  group?: string
+  base: number
+  height: number | null
+}
+
+const FLOOR_GROUP = 'Standing on the floor'
+const CEILING_GROUP = 'Hanging from the ceiling'
+
+/** Typical sizes; anything else is typed straight into the two fields. */
+function heightPresets(ceiling: number): HeightPreset[] {
+  return [
+    { id: 'full', label: 'Full height — floor to ceiling', group: FLOOR_GROUP, base: 0, height: null },
+    { id: 'f120', label: 'Half wall — 1.20 m', group: FLOOR_GROUP, base: 0, height: 1.2 },
+    { id: 'f110', label: 'Terrace parapet — 1.10 m', group: FLOOR_GROUP, base: 0, height: 1.1 },
+    { id: 'f090', label: 'Half wall — 0.90 m', group: FLOOR_GROUP, base: 0, height: 0.9 },
+    { id: 'f040', label: 'Kerb / step — 0.40 m', group: FLOOR_GROUP, base: 0, height: 0.4 },
+    { id: 'c030', label: 'Beam — 0.30 m deep', group: CEILING_GROUP, base: ceiling - 0.3, height: null },
+    { id: 'c050', label: 'Boxing — 0.50 m deep', group: CEILING_GROUP, base: ceiling - 0.5, height: null },
+    { id: 'c210', label: 'Clear 2.10 m underneath', group: CEILING_GROUP, base: 2.1, height: null },
+  ]
+}
+
+function matchPreset(presets: HeightPreset[], base: number, height: number | null): string {
+  const hit = presets.find((p) => Math.abs(p.base - base) < 1e-6 && p.height === height)
+  return hit?.id ?? 'custom'
+}
+
+const CUSTOM_OPTION = { value: 'custom', label: 'Custom — set the numbers below' }
 
 const ITEM_COLORS = ['#8b6a45', '#9a7f5f', '#5d6778', '#6f7c93', '#4c7a4c', '#cfd4de', '#e9ecf2', '#43485a', '#5b4b63', '#a2564f']
 
@@ -91,15 +123,27 @@ export function PropertiesPanel() {
       <>
         <Section title="Wall">
           <NumberField label="Length" value={len} step={0.1} min={0.1} onChange={(v) => st.getState().setWallLength(wall.id, v)} />
+          <NumberField
+            label="Thickness"
+            value={wall.thickness}
+            step={0.01}
+            min={0.03}
+            max={1}
+            onChange={(v) => st.getState().updateWall(wall.id, { thickness: v })}
+          />
+          <Select
+            label="Vertical extent"
+            value={matchPreset(heightPresets(floor.height), wall.base, wall.height)}
+            options={[
+              CUSTOM_OPTION,
+              ...heightPresets(floor.height).map((p) => ({ value: p.id, label: p.label, group: p.group })),
+            ]}
+            onChange={(id) => {
+              const p = heightPresets(floor.height).find((x) => x.id === id)
+              if (p) st.getState().updateWall(wall.id, { base: p.base, height: p.height })
+            }}
+          />
           <Row>
-            <NumberField
-              label="Thickness"
-              value={wall.thickness}
-              step={0.01}
-              min={0.03}
-              max={1}
-              onChange={(v) => st.getState().updateWall(wall.id, { thickness: v })}
-            />
             <NumberField
               label="Starts at"
               value={wall.base}
@@ -108,70 +152,30 @@ export function PropertiesPanel() {
               max={Math.max(0, floor.height - 0.05)}
               onChange={(v) => st.getState().updateWall(wall.id, { base: v })}
             />
+            <NumberField
+              label="Height"
+              value={wall.height ?? floor.height - wall.base}
+              step={0.05}
+              min={0.05}
+              max={8}
+              onChange={(v) => st.getState().updateWall(wall.id, { height: v })}
+            />
           </Row>
-          <NumberField
-            label="Height above that"
-            value={wall.height ?? floor.height - wall.base}
-            step={0.05}
-            min={0.05}
-            max={8}
-            onChange={(v) => st.getState().updateWall(wall.id, { height: v })}
-          />
-          <div>
-            <span className="field-label">From the floor</span>
-            <div className="grid grid-cols-4 gap-1.5">
-              <button
-                className={`btn ${wall.height === null && wall.base === 0 ? 'border-accent text-accent' : ''}`}
-                title="Full height, same as the floor"
-                onClick={() => st.getState().updateWall(wall.id, { base: 0, height: null })}
-              >
-                Full
-              </button>
-              {[
-                { label: '1.10', v: 1.1, title: 'Balcony / terrace parapet' },
-                { label: '0.90', v: 0.9, title: 'Half wall' },
-                { label: '0.40', v: 0.4, title: 'Kerb / step' },
-              ].map((p) => (
-                <button
-                  key={p.v}
-                  className={`btn ${wall.base === 0 && wall.height === p.v ? 'border-accent text-accent' : ''}`}
-                  title={p.title}
-                  onClick={() => st.getState().updateWall(wall.id, { base: 0, height: p.v })}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <span className="field-label mt-2">Hanging from the ceiling</span>
-            <div className="grid grid-cols-3 gap-1.5">
-              {[
-                { label: 'Beam 30', drop: 0.3 },
-                { label: 'Beam 50', drop: 0.5 },
-                { label: 'Down to 2.10', drop: Math.max(0.05, floor.height - 2.1) },
-              ].map((p) => (
-                <button
-                  key={p.label}
-                  className="btn"
-                  title="Leaves the floor clear underneath"
-                  onClick={() =>
-                    st.getState().updateWall(wall.id, {
-                      base: Math.max(0, floor.height - p.drop),
-                      height: null,
-                    })
-                  }
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-mist-400">
-              {wall.base > 0
-                ? `Hangs from ${wall.base.toFixed(2)} m up to ${(wall.height === null ? floor.height : wall.base + wall.height).toFixed(2)} m — you can walk underneath it. Drawn dotted on the plan.`
-                : wall.height !== null
-                  ? `Low wall, ${wall.height.toFixed(2)} m high. Drawn dashed on the plan. Floor default is ${floor.height.toFixed(2)} m.`
-                  : `Full height, ${floor.height.toFixed(2)} m.`}
-            </p>
-          </div>
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            Type any size you like: <b>starts at</b> is the gap under the wall, <b>height</b> is how tall the wall
+            itself is. Top edge sits at{' '}
+            <b>{(wall.height === null ? floor.height : wall.base + wall.height).toFixed(2)} m</b>
+            {wall.base > 0
+              ? ' — it hangs from above, so you can walk underneath it.'
+              : wall.height !== null
+                ? ' — a low wall you cannot walk through.'
+                : ', the full ceiling height.'}
+          </p>
+          {wall.height !== null ? (
+            <button className="btn w-full" onClick={() => st.getState().updateWall(wall.id, { height: null })}>
+              Stretch up to the ceiling ({floor.height.toFixed(2)} m)
+            </button>
+          ) : null}
           <button
             className="btn w-full"
             title="Adds a corner in the middle so the wall can bend around a column"
@@ -402,6 +406,18 @@ export function PropertiesPanel() {
             <NumberField label="X" value={column.x} step={0.05} min={-1000} onChange={(x) => st.getState().updateColumn(column.id, { x })} />
             <NumberField label="Y" value={column.y} step={0.05} min={-1000} onChange={(y) => st.getState().updateColumn(column.id, { y })} />
           </Row>
+          <Select
+            label="Vertical extent"
+            value={matchPreset(heightPresets(floor.height), column.base, column.height)}
+            options={[
+              CUSTOM_OPTION,
+              ...heightPresets(floor.height).map((p) => ({ value: p.id, label: p.label, group: p.group })),
+            ]}
+            onChange={(id) => {
+              const p = heightPresets(floor.height).find((x) => x.id === id)
+              if (p) st.getState().updateColumn(column.id, { base: p.base, height: p.height })
+            }}
+          />
           <Row>
             <NumberField
               label="Starts at"
@@ -412,7 +428,7 @@ export function PropertiesPanel() {
               onChange={(base) => st.getState().updateColumn(column.id, { base })}
             />
             <NumberField
-              label="Height above that"
+              label="Height"
               value={column.height ?? floor.height - column.base}
               step={0.05}
               min={0.05}
@@ -420,29 +436,10 @@ export function PropertiesPanel() {
               onChange={(height) => st.getState().updateColumn(column.id, { height })}
             />
           </Row>
-          <div className="grid grid-cols-3 gap-1.5">
-            <button
-              className={`btn ${column.base === 0 && column.height === null ? 'border-accent text-accent' : ''}`}
-              title="Floor to ceiling"
-              onClick={() => st.getState().updateColumn(column.id, { base: 0, height: null })}
-            >
-              Full
-            </button>
-            <button
-              className="btn"
-              title="Stub rising from the floor — a plinth or a half pier"
-              onClick={() => st.getState().updateColumn(column.id, { base: 0, height: 1.1 })}
-            >
-              From floor
-            </button>
-            <button
-              className="btn"
-              title="Boxing hanging from the ceiling"
-              onClick={() => st.getState().updateColumn(column.id, { base: Math.max(0, floor.height - 0.5), height: null })}
-            >
-              From ceiling
-            </button>
-          </div>
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            Any size goes: <b>starts at</b> lifts it off the floor, <b>height</b> is how tall it is. Top edge at{' '}
+            <b>{top.toFixed(2)} m</b>.
+          </p>
           <Row>
             <NumberField
               label="Rotation"
