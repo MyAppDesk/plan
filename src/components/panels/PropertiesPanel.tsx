@@ -231,6 +231,16 @@ export function PropertiesPanel() {
               })
             }
           />
+          {op.kind === 'door' ? (
+            <SegButtons
+              value={op.doorType}
+              options={[
+                { value: 'hinged', label: 'Hinged' },
+                { value: 'sliding', label: 'Sliding' },
+              ]}
+              onChange={(doorType) => st.getState().updateOpening(op.id, { doorType })}
+            />
+          ) : null}
           <Row>
             <NumberField
               label="Width"
@@ -270,7 +280,7 @@ export function PropertiesPanel() {
           </Row>
           <Row>
             <button className="btn" onClick={() => st.getState().updateOpening(op.id, { flipHinge: !op.flipHinge })}>
-              <ArrowLeftRight size={14} /> Hinge
+              <ArrowLeftRight size={14} /> {op.doorType === 'sliding' ? 'Slide side' : 'Hinge'}
             </button>
             <button className="btn" onClick={() => st.getState().updateOpening(op.id, { flipSide: !op.flipSide })}>
               <FlipHorizontal2 size={14} /> Swing
@@ -294,6 +304,11 @@ export function PropertiesPanel() {
               </button>
             ))}
           </div>
+          {op.kind === 'door' ? (
+            <p className="text-[11px] leading-relaxed text-mist-400">
+              Doors start closed in walk mode — stand next to one and press <b>E</b> (or click) to open it.
+            </p>
+          ) : null}
           {wall ? (
             <button className="btn w-full" onClick={() => st.getState().select({ kind: 'wall', id: wall.id })}>
               Select host wall

@@ -651,6 +651,17 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     setDrag({ kind: 'room-resize', id, sx, sy, base: polygonBounds(roomPoints(floor, room)) })
   }
 
+  /** Double-clicking a corner welds its two walls back into one. */
+  const dissolveCorner = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select') return
+    e.cancelBubble = true
+    const ok = store.getState().dissolvePoint(id)
+    if (!ok) {
+      store.getState().flash('That corner joins more than two walls — delete a wall first.')
+      window.setTimeout(() => store.getState().flash(null), 3000)
+    }
+  }
+
   /** Double-clicking a wall drops a corner on it, so the run can bend. */
   const splitWallAt = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
     if (tool !== 'select') return
@@ -801,6 +812,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               selection={selection}
               scale={view.scale}
               onDown={(id) => startEntity({ kind: 'point', id })}
+              onDblClick={dissolveCorner}
             />
           ) : null}
         </Layer>

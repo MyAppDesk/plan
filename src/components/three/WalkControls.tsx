@@ -3,22 +3,36 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { PointerLockControls } from '@react-three/drei'
 import * as THREE from 'three'
 import type { Floor } from '../../types'
-import { blockingSolids, polygonArea, resolveCollisions, roomPoints, polygonCentroid } from '../../lib/geometry'
+import { useDoors } from '../../store/useDoors'
+import {
+  blockingSolids,
+  nearestDoor,
+  polygonArea,
+  polygonCentroid,
+  resolveCollisions,
+  roomPoints,
+} from '../../lib/geometry'
 
 const EYE = 1.65
 const CROUCH = 1.05
 const SPEED = 2.6
 const RUN = 5.2
 const RADIUS = 0.26
+const REACH = 1.6
 
-/** First-person controller: mouse look, WASD, and walls you cannot walk through. */
+/** First-person controller: mouse look, WASD, doors you have to open. */
 export function WalkControls({ floor }: { floor: Floor }) {
   const camera = useThree((s) => s.camera)
   const keys = useRef<Record<string, boolean>>({})
   const forward = useRef(new THREE.Vector3())
   const right = useRef(new THREE.Vector3())
+  const openDoors = useDoors((s) => s.open)
 
-  const solids = useMemo(() => blockingSolids(floor, 0.05, EYE + 0.1), [floor])
+  // closed doors are solid; opening one carves the hole back out
+  const solids = useMemo(() => {
+    const open = new Set(Object.entries(openDoors).filter(([, v]) => v).map(([id]) => id))
+    return blockingSolids(floor, 0.05, EYE + 0.1, open)
+  }, [floor, openDoors])
 
   // drop the camera in the middle of the biggest room the first time we walk
   useEffect(() => {
@@ -35,20 +49,34 @@ export function WalkControls({ floor }: { floor: Floor }) {
   }, [floor.id])
 
   useEffect(() => {
+    const toggleNearest = () => {
+      const near = useDoors.getState().near
+      if (near) useDoors.getState().toggle(near.id)
+    }
     const down = (e: KeyboardEvent) => {
       keys.current[e.code] = true
+      if (e.code === 'KeyE') toggleNearest()
     }
     const up = (e: KeyboardEvent) => {
       keys.current[e.code] = false
     }
+    // a click while the pointer is locked also works the handle
+    const click = () => {
+      if (document.pointerLockElement) toggleNearest()
+    }
     window.addEventListener('keydown', down)
     window.addEventListener('keyup', up)
+    window.addEventListener('mousedown', click)
     return () => {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
+      window.removeEventListener('mousedown', click)
       keys.current = {}
+      useDoors.getState().setNear(null)
     }
   }, [])
+
+  useEffect(() => () => useDoors.getState().setNear(null), [])
 
   useFrame((_, rawDelta) => {
     const delta = Math.min(rawDelta, 0.05)
@@ -63,6 +91,20 @@ export function WalkControls({ floor }: { floor: Floor }) {
     const crouching = !!(k.ControlLeft || k.KeyC)
     const targetY = floor.elevation + (crouching ? CROUCH : EYE)
     camera.position.y += (targetY - camera.position.y) * Math.min(1, delta * 10)
+
+    // what is within arm's reach right now
+    const here = { x: camera.position.x, y: camera.position.z }
+    const near = nearestDoor(floor, here, REACH)
+    const state = useDoors.getState()
+    state.setNear(
+      near
+        ? {
+            id: near.opening.id,
+            open: !!state.open[near.opening.id],
+            label: near.opening.doorType === 'sliding' ? 'sliding door' : 'door',
+          }
+        : null,
+    )
 
     if (!fwd && !side) return
 

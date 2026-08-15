@@ -18,6 +18,7 @@ const SECTIONS = [
       ['—', 'The right panel edits exact lengths, thicknesses, heights and sizes'],
       ['—', 'Changing a wall length moves its far corner along the wall'],
       ['2×', 'Double-click a wall to drop a corner on it, then drag it out to bend the run'],
+      ['2×', 'Double-click a corner to remove it and weld its two walls back together'],
       ['Del', 'Delete the selection · C duplicates it'],
       ['Ctrl+Z', 'Undo · Ctrl+Shift+Z redo'],
     ],
@@ -25,7 +26,7 @@ const SECTIONS = [
   {
     title: 'Openings & furniture',
     rows: [
-      ['D', 'Door: click a wall, then drag it along the wall'],
+      ['D', 'Door: click a wall, then drag it along the wall — hinged or sliding'],
       ['N', 'Window: same, with an editable sill height'],
       ['K', 'Column or pier: square or round, with its own footprint, base and height'],
       ['I', 'Place the item selected in the Catalog tab'],
@@ -49,6 +50,8 @@ const SECTIONS = [
       ['1 2 3', 'Plan · 3D · Walk'],
       ['3D', 'Drag to orbit, wheel to zoom, right-drag to pan'],
       ['Walk', 'Click to look around, WASD to move, Shift to run, C to crouch, Esc to release'],
+      ['E', 'Doors start closed — stand next to one and press E (or click) to open it'],
+      ['3D', 'Click anything to select it; it lights up blue and opens in the right panel'],
     ],
   },
   {

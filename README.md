@@ -27,7 +27,8 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   ends up buried inside it) and lines up with the wall when it is roughly parallel. Optional, toggled with
   `H`.
 - **Doors & windows** — click a wall to place one, drag it along the wall, then set width, height, sill
-  height, hinge side and swing direction. Openings are cut out of the 3D walls.
+  height, hinge side and swing direction. Doors can be hinged or **sliding**. Openings are cut out of the 3D
+  walls.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
@@ -36,8 +37,10 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   screening the shower, a beam across the living room and a service duct (Settings → Reset to sample flat).
 - **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
 - **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
-- **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls. You can
-  walk through doorways; window sills stop you.
+- **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls, columns
+  and closed doors. Doors start closed: stand next to one and press `E` (or click) to swing or slide it open.
+- **Pick in 3D** — click any wall, room, column, opening or piece of furniture in the 3D view to select it; it
+  outlines in blue and its properties open on the right.
 - **Undo / redo**, grid snapping, alignment guides, autosave, JSON import/export, PNG export.
 
 ## Keyboard

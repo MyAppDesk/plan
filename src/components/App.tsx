@@ -9,6 +9,7 @@ import { StatusBar } from './StatusBar'
 import { SidePanel } from './SidePanel'
 import { HelpDialog } from './HelpDialog'
 import { useProject, redo, undo } from '../store/useProject'
+import { useDoors } from '../store/useDoors'
 import { emit } from '../lib/bus'
 import type { Tool } from '../types'
 
@@ -27,6 +28,7 @@ const TOOL_KEYS: Record<string, Tool> = {
 
 export function App() {
   const view = useProject((s) => s.view)
+  const nearDoor = useDoors((s) => s.near)
   const setView = useProject((s) => s.setView)
   const [help, setHelp] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -88,6 +90,7 @@ export function App() {
     reader.onload = () => {
       try {
         useProject.getState().loadProject(JSON.parse(String(reader.result)))
+        useDoors.getState().closeAll()
         emit('fit')
       } catch {
         alert('That file could not be read as a Measure project.')
@@ -121,10 +124,18 @@ export function App() {
               <div className="pointer-events-none absolute top-1/2 left-1/2 h-3 w-3 -translate-x-1/2 -translate-y-1/2">
                 <div className="h-full w-full rounded-full border border-white/70" />
               </div>
+              {nearDoor ? (
+                <div className="pointer-events-none absolute top-[58%] left-1/2 -translate-x-1/2 rounded-md border border-accent-soft bg-ink-900/90 px-3 py-1.5 backdrop-blur">
+                  <p className="text-mist-200">
+                    <kbd>E</kbd> {nearDoor.open ? 'close' : 'open'} the {nearDoor.label}
+                  </p>
+                </div>
+              ) : null}
               <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-lg border border-ink-600 bg-ink-900/85 px-4 py-2.5 text-center backdrop-blur">
                 <p className="text-mist-200">
                   Click to look around · <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> to move ·{' '}
-                  <kbd>Shift</kbd> to run · <kbd>C</kbd> to crouch · <kbd>Esc</kbd> to release the cursor
+                  <kbd>Shift</kbd> to run · <kbd>C</kbd> to crouch · <kbd>E</kbd> for doors ·{' '}
+                  <kbd>Esc</kbd> to release the cursor
                 </p>
               </div>
             </>

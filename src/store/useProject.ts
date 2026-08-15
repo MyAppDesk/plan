@@ -139,6 +139,7 @@ function placeOpening(
     sill: kind === 'door' ? 0 : 1.0,
     flipSide: false,
     flipHinge: false,
+    doorType: 'hinged',
     ...extra,
   })
 }
@@ -202,7 +203,7 @@ export function starterProject(): Project {
   placeOpening(floor, { x: 5.2, y: 4.2 }, { x: 5.2, y: 6.6 }, 'door', 1.2, 0.75)
   placeOpening(floor, { x: 0, y: 4.2 }, { x: 5.2, y: 4.2 }, 'door', 3.9, 0.9)
   placeOpening(floor, { x: 0, y: 6.6 }, { x: 5.2, y: 6.6 }, 'door', 1.0, 0.9)
-  placeOpening(floor, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2 })
+  placeOpening(floor, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2, doorType: 'sliding' })
   placeOpening(floor, { x: 5.2, y: 0 }, { x: 8.8, y: 0 }, 'window', 1.8, 1.2)
   placeOpening(floor, { x: 8.8, y: 4.2 }, { x: 8.8, y: 6.6 }, 'window', 1.2, 0.6, { height: 0.8, sill: 1.4 })
 
@@ -298,6 +299,7 @@ export interface ProjectState extends UiState {
   resizeRoom: (id: ID, w: number, h: number) => void
   setRoomBounds: (id: ID, box: { minX: number; minY: number; maxX: number; maxY: number }) => void
   splitWall: (id: ID, at: Vec) => void
+  dissolvePoint: (id: ID) => boolean
   extrudeWall: (id: ID, offset: number) => void
   setWallLength: (id: ID, length: number) => void
   updateWall: (id: ID, patch: Partial<Wall>) => void
@@ -349,7 +351,12 @@ export function normalizeProject(p: Project): Project {
         shape: c.shape ?? 'rect',
       })),
       rooms: (f.rooms ?? []).map((r) => ({ ...r, height: r.height ?? null })),
-      openings: (f.openings ?? []).map((o) => ({ ...o, flipSide: !!o.flipSide, flipHinge: !!o.flipHinge })),
+      openings: (f.openings ?? []).map((o) => ({
+        ...o,
+        flipSide: !!o.flipSide,
+        flipHinge: !!o.flipHinge,
+        doorType: o.doorType ?? 'hinged',
+      })),
       items: (f.items ?? []).map((it) => ({ ...it, z: it.z ?? 0 })),
       measures: f.measures ?? [],
     })),
@@ -504,6 +511,7 @@ export const useProject = create<ProjectState>()(
               sill: kind === 'door' ? 0 : 1.0,
               flipSide: false,
               flipHinge: false,
+              doorType: 'hinged',
             }
             floor.openings.push(op)
             state.selection = { kind: 'opening', id: op.id }
@@ -666,6 +674,50 @@ export const useProject = create<ProjectState>()(
 
             state.selection = { kind: 'point', id: mid.id }
           }),
+
+        /**
+         * Removes a corner and welds its two walls back into one — the inverse of
+         * splitWall. Only works where exactly two walls meet.
+         */
+        dissolvePoint: (id) => {
+          const floor = get().project.floors.find((f) => f.id === get().activeFloorId)
+          const touching = floor?.walls.filter((w) => w.a === id || w.b === id) ?? []
+          if (!floor || touching.length !== 2) return false
+
+          set(
+            produce((state: ProjectState) => {
+              const f = state.project.floors.find((x) => x.id === state.activeFloorId)!
+              const [w1, w2] = f.walls.filter((w) => w.a === id || w.b === id)
+              const pts = pointMap(f)
+              const farA = w1.a === id ? w1.b : w1.a
+              const farB = w2.a === id ? w2.b : w2.a
+              if (farA === farB) return
+              const mid = pts.get(id)!
+              const len1 = dist(pts.get(farA)!, mid)
+
+              const merged: Wall = { ...w1, id: uid('w'), a: farA, b: farB }
+              f.walls = f.walls.filter((w) => w.id !== w1.id && w.id !== w2.id)
+              f.walls.push(merged)
+
+              // offsets are measured from `a`, so the second wall's openings shift along
+              for (const o of f.openings) {
+                if (o.wallId === w1.id) {
+                  o.wallId = merged.id
+                  o.offset = w1.a === farA ? o.offset : len1 - o.offset
+                } else if (o.wallId === w2.id) {
+                  o.wallId = merged.id
+                  o.offset = len1 + (w2.a === id ? o.offset : dist(mid, pts.get(farB)!) - o.offset)
+                }
+              }
+
+              for (const room of f.rooms) room.loop = room.loop.filter((p) => p !== id)
+              f.rooms = f.rooms.filter((r) => r.loop.length >= 3)
+              f.points = f.points.filter((p) => p.id !== id)
+              state.selection = { kind: 'wall', id: merged.id }
+            }),
+          )
+          return true
+        },
 
         /** Pushes a wall out (or in) along its normal, leaving a U of three walls. */
         extrudeWall: (id, offset) =>

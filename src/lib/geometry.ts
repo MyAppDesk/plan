@@ -283,8 +283,32 @@ export function columnSolid(floor: Floor, column: Column): WallSolid {
   }
 }
 
+/** A closed door leaf, as a solid you cannot walk through. */
+export function doorBlockers(floor: Floor, openIds: Set<ID>): WallSolid[] {
+  const pts = pointMap(floor)
+  const out: WallSolid[] = []
+  for (const o of floor.openings) {
+    if (o.kind !== 'door' || openIds.has(o.id)) continue
+    const wall = floor.walls.find((w) => w.id === o.wallId)
+    if (!wall) continue
+    const e = wallEnds(floor, wall, pts)
+    if (!e) continue
+    const angle = angleOf(e.a, e.b)
+    out.push({
+      cx: e.a.x + Math.cos(angle) * o.offset,
+      cy: e.a.y + Math.sin(angle) * o.offset,
+      len: o.width,
+      thickness: wall.thickness,
+      bottom: wallBaseOf(wall),
+      top: Math.min(wallTopOf(floor, wall), o.height),
+      angle,
+    })
+  }
+  return out
+}
+
 /** Solids that a walking person at [feet, head] would bump into. */
-export function blockingSolids(floor: Floor, feet = 0.05, head = 1.75): WallSolid[] {
+export function blockingSolids(floor: Floor, feet = 0.05, head = 1.75, openDoors?: Set<ID>): WallSolid[] {
   const pts = pointMap(floor)
   const out: WallSolid[] = []
   for (const wall of floor.walls) {
@@ -296,7 +320,28 @@ export function blockingSolids(floor: Floor, feet = 0.05, head = 1.75): WallSoli
     const s = columnSolid(floor, column)
     if (s.top > feet && s.bottom < head) out.push(s)
   }
+  if (openDoors) {
+    for (const s of doorBlockers(floor, openDoors)) if (s.top > feet && s.bottom < head) out.push(s)
+  }
   return out
+}
+
+/** The door nearest to a position, for the "press E to open" prompt. */
+export function nearestDoor(floor: Floor, p: Vec, maxDist = 1.6): { opening: Opening; dist: number } | null {
+  const pts = pointMap(floor)
+  let best: { opening: Opening; dist: number } | null = null
+  for (const o of floor.openings) {
+    if (o.kind !== 'door') continue
+    const wall = floor.walls.find((w) => w.id === o.wallId)
+    if (!wall) continue
+    const e = wallEnds(floor, wall, pts)
+    if (!e) continue
+    const angle = angleOf(e.a, e.b)
+    const c = { x: e.a.x + Math.cos(angle) * o.offset, y: e.a.y + Math.sin(angle) * o.offset }
+    const d = dist(p, c)
+    if (d <= maxDist && (!best || d < best.dist)) best = { opening: o, dist: d }
+  }
+  return best
 }
 
 /** Pushes a circle of `radius` out of every solid box it overlaps. */

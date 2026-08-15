@@ -1,9 +1,10 @@
-import { Suspense, useMemo } from 'react'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
+import { Suspense, useMemo, useRef } from 'react'
+import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
+import { Edges, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import type { Floor, Opening } from '../../types'
+import type { Floor, Opening, Selection } from '../../types'
 import { useActiveFloor, useProject } from '../../store/useProject'
+import { useDoors } from '../../store/useDoors'
 import { catalogItem } from '../../lib/catalog'
 import {
   angleOf,
@@ -19,12 +20,31 @@ import { WalkControls } from './WalkControls'
 
 const WALL_COLOR = '#dfe4ee'
 const FLOOR_COLOR = '#8c8378'
+const SELECTED = '#4f8cff'
+
+type Pick = (sel: Selection) => ((e: ThreeEvent<PointerEvent>) => void) | undefined
+
+/** Blue outline around whatever is selected. */
+function Highlight({ on }: { on: boolean }) {
+  if (!on) return null
+  return <Edges color={SELECTED} lineWidth={2} scale={1.004} />
+}
 
 /* ------------------------------------------------------------------ */
 /* rooms                                                               */
 /* ------------------------------------------------------------------ */
 
-function RoomSlabs({ floor, ceiling }: { floor: Floor; ceiling: boolean }) {
+function RoomSlabs({
+  floor,
+  ceiling,
+  pick,
+  selection,
+}: {
+  floor: Floor
+  ceiling: boolean
+  pick: Pick
+  selection: Selection | null
+}) {
   const slabs = useMemo(() => {
     const pts = pointMap(floor)
     return floor.rooms
@@ -43,10 +63,21 @@ function RoomSlabs({ floor, ceiling }: { floor: Floor; ceiling: boolean }) {
     <group>
       {slabs.map(({ room, geo }) => {
         const h = room.height ?? floor.height
+        const selected = selection?.kind === 'room' && selection.id === room.id
         return (
           <group key={room.id}>
-            <mesh geometry={geo} position={[0, floor.elevation + 0.005, 0]} receiveShadow>
-              <meshStandardMaterial color={FLOOR_COLOR} roughness={0.95} side={THREE.DoubleSide} />
+            <mesh
+              geometry={geo}
+              position={[0, floor.elevation + 0.005, 0]}
+              receiveShadow
+              onPointerDown={pick({ kind: 'room', id: room.id })}
+            >
+              <meshStandardMaterial
+                color={selected ? '#a2957f' : FLOOR_COLOR}
+                roughness={0.95}
+                side={THREE.DoubleSide}
+              />
+              <Highlight on={selected} />
             </mesh>
             {ceiling ? (
               <mesh geometry={geo} position={[0, floor.elevation + h - 0.01, 0]}>
@@ -61,40 +92,45 @@ function RoomSlabs({ floor, ceiling }: { floor: Floor; ceiling: boolean }) {
 }
 
 /* ------------------------------------------------------------------ */
-/* walls                                                               */
+/* walls + columns                                                     */
 /* ------------------------------------------------------------------ */
 
-function Walls({ floor }: { floor: Floor }) {
-  const pts = pointMap(floor)
-  const solids = useMemo(
-    () => floor.walls.flatMap((w) => wallSolids(floor, w, pts).map((s) => ({ s, id: w.id, color: w.color }))),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [floor],
-  )
+function Walls({ floor, pick, selection }: { floor: Floor; pick: Pick; selection: Selection | null }) {
+  const solids = useMemo(() => {
+    const pts = pointMap(floor)
+    return floor.walls.flatMap((w) => wallSolids(floor, w, pts).map((s) => ({ s, id: w.id, color: w.color })))
+  }, [floor])
+
   return (
     <group>
-      {solids.map(({ s, id, color }, i) => (
-        <mesh
-          key={`${id}-${i}`}
-          position={[s.cx, floor.elevation + (s.bottom + s.top) / 2, s.cy]}
-          rotation={[0, -s.angle, 0]}
-          castShadow
-          receiveShadow
-        >
-          <boxGeometry args={[s.len, s.top - s.bottom, s.thickness]} />
-          <meshStandardMaterial color={color ?? WALL_COLOR} roughness={0.92} />
-        </mesh>
-      ))}
+      {solids.map(({ s, id, color }, i) => {
+        const selected = selection?.kind === 'wall' && selection.id === id
+        return (
+          <mesh
+            key={`${id}-${i}`}
+            position={[s.cx, floor.elevation + (s.bottom + s.top) / 2, s.cy]}
+            rotation={[0, -s.angle, 0]}
+            castShadow
+            receiveShadow
+            onPointerDown={pick({ kind: 'wall', id })}
+          >
+            <boxGeometry args={[s.len, s.top - s.bottom, s.thickness]} />
+            <meshStandardMaterial color={selected ? '#cfe0ff' : (color ?? WALL_COLOR)} roughness={0.92} />
+            <Highlight on={selected} />
+          </mesh>
+        )
+      })}
     </group>
   )
 }
 
-function Columns({ floor }: { floor: Floor }) {
+function Columns({ floor, pick, selection }: { floor: Floor; pick: Pick; selection: Selection | null }) {
   return (
     <group>
       {(floor.columns ?? []).map((c) => {
         const top = columnTopOf(floor, c)
         const h = Math.max(0.02, top - c.base)
+        const selected = selection?.kind === 'column' && selection.id === c.id
         return (
           <mesh
             key={c.id}
@@ -102,13 +138,15 @@ function Columns({ floor }: { floor: Floor }) {
             rotation={[0, -c.rot, 0]}
             castShadow
             receiveShadow
+            onPointerDown={pick({ kind: 'column', id: c.id })}
           >
             {c.shape === 'round' ? (
               <cylinderGeometry args={[Math.max(c.w, c.d) / 2, Math.max(c.w, c.d) / 2, h, 24]} />
             ) : (
               <boxGeometry args={[c.w, h, c.d]} />
             )}
-            <meshStandardMaterial color={c.color} roughness={0.9} />
+            <meshStandardMaterial color={selected ? '#cfe0ff' : c.color} roughness={0.9} />
+            <Highlight on={selected} />
           </mesh>
         )
       })}
@@ -120,7 +158,106 @@ function Columns({ floor }: { floor: Floor }) {
 /* doors + windows                                                     */
 /* ------------------------------------------------------------------ */
 
-function OpeningDetail({ floor, opening }: { floor: Floor; opening: Opening }) {
+function HingedLeaf({
+  width,
+  height,
+  open,
+  hinge,
+  side,
+}: {
+  width: number
+  height: number
+  open: boolean
+  hinge: number
+  side: number
+}) {
+  const target = open ? hinge * side * (Math.PI / 2.2) : 0
+  const ref = useRef<THREE.Group>(null)
+  useFrame((_, dt) => {
+    const g = ref.current
+    if (!g) return
+    const k = 1 - Math.pow(0.0008, Math.min(dt, 0.05))
+    g.rotation.y += (target - g.rotation.y) * k
+  })
+  return (
+    <group ref={ref} position={[(hinge * width) / 2, 0, 0]}>
+      <mesh position={[(-hinge * width) / 2, height / 2, 0]} castShadow>
+        <boxGeometry args={[width - 0.02, height - 0.02, 0.04]} />
+        <meshStandardMaterial color="#b98d5f" roughness={0.7} />
+      </mesh>
+      <mesh position={[-hinge * (width - 0.12), height * 0.45, 0.045]}>
+        <sphereGeometry args={[0.03, 12, 12]} />
+        <meshStandardMaterial color="#cfd4de" metalness={0.8} roughness={0.25} />
+      </mesh>
+    </group>
+  )
+}
+
+function SlidingLeaf({
+  width,
+  height,
+  thickness,
+  open,
+  side,
+}: {
+  width: number
+  height: number
+  thickness: number
+  open: boolean
+  side: number
+}) {
+  const target = open ? side * width * 0.96 : 0
+  const ref = useRef<THREE.Group>(null)
+  useFrame((_, dt) => {
+    const g = ref.current
+    if (!g) return
+    const k = 1 - Math.pow(0.0008, Math.min(dt, 0.05))
+    g.position.x += (target - g.position.x) * k
+  })
+  return (
+    <group>
+      {/* the rail it hangs from */}
+      <mesh position={[0, height + 0.04, 0]}>
+        <boxGeometry args={[width * 2.05, 0.06, thickness + 0.06]} />
+        <meshStandardMaterial color="#aeb6c4" metalness={0.6} roughness={0.35} />
+      </mesh>
+      <group ref={ref} position={[0, 0, thickness / 2 + 0.03]}>
+        <mesh position={[0, height / 2, 0]}>
+          <boxGeometry args={[width - 0.04, height - 0.06, 0.03]} />
+          <meshPhysicalMaterial color="#bcdcf5" transparent opacity={0.3} roughness={0.05} transmission={0.6} />
+        </mesh>
+        {[
+          [0, 0.03, width, 0.06],
+          [0, height - 0.03, width, 0.06],
+        ].map(([x, y, fw, fh], i) => (
+          <mesh key={i} position={[x, y, 0]}>
+            <boxGeometry args={[fw, fh, 0.05]} />
+            <meshStandardMaterial color="#9aa3b2" metalness={0.5} roughness={0.4} />
+          </mesh>
+        ))}
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[(s * (width - 0.05)) / 2, height / 2, 0]}>
+            <boxGeometry args={[0.05, height, 0.05]} />
+            <meshStandardMaterial color="#9aa3b2" metalness={0.5} roughness={0.4} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  )
+}
+
+function OpeningDetail({
+  floor,
+  opening,
+  pick,
+  selection,
+}: {
+  floor: Floor
+  opening: Opening
+  pick: Pick
+  selection: Selection | null
+}) {
+  const open = useDoors((s) => !!s.open[opening.id])
   const wall = floor.walls.find((w) => w.id === opening.wallId)
   if (!wall) return null
   const e = wallEnds(floor, wall)
@@ -134,67 +271,56 @@ function OpeningDetail({ floor, opening }: { floor: Floor; opening: Opening }) {
   const sill = opening.kind === 'door' ? 0 : opening.sill
   const height = Math.min(opening.height, wallH - sill)
   const w = opening.width
+  const selected = selection?.kind === 'opening' && selection.id === opening.id
+  const onDown = pick({ kind: 'opening', id: opening.id })
 
   if (opening.kind === 'door') {
     const hinge = opening.flipHinge ? -1 : 1
-    const swing = (opening.flipSide ? -1 : 1) * (Math.PI / 2.4)
+    const side = opening.flipSide ? -1 : 1
     return (
       <group position={[cx, y0, cy]} rotation={[0, -ang, 0]}>
-        {/* casing */}
-        <mesh position={[-w / 2 - 0.03, height / 2, 0]}>
-          <boxGeometry args={[0.06, height, t + 0.04]} />
-          <meshStandardMaterial color="#c9cedb" roughness={0.8} />
-        </mesh>
-        <mesh position={[w / 2 + 0.03, height / 2, 0]}>
-          <boxGeometry args={[0.06, height, t + 0.04]} />
-          <meshStandardMaterial color="#c9cedb" roughness={0.8} />
-        </mesh>
-        <mesh position={[0, height + 0.03, 0]}>
+        {[-1, 1].map((s) => (
+          <mesh key={s} position={[(s * (w + 0.06)) / 2, height / 2, 0]} onPointerDown={onDown}>
+            <boxGeometry args={[0.06, height, t + 0.04]} />
+            <meshStandardMaterial color={selected ? '#cfe0ff' : '#c9cedb'} roughness={0.8} />
+            <Highlight on={selected} />
+          </mesh>
+        ))}
+        <mesh position={[0, height + 0.03, 0]} onPointerDown={onDown}>
           <boxGeometry args={[w + 0.12, 0.06, t + 0.04]} />
-          <meshStandardMaterial color="#c9cedb" roughness={0.8} />
+          <meshStandardMaterial color={selected ? '#cfe0ff' : '#c9cedb'} roughness={0.8} />
+          <Highlight on={selected} />
         </mesh>
-        {/* leaf, hinged on one side and left ajar */}
-        <group position={[(hinge * w) / 2, 0, 0]} rotation={[0, hinge * swing, 0]}>
-          <mesh position={[(-hinge * w) / 2, height / 2, 0]} castShadow>
-            <boxGeometry args={[w - 0.02, height - 0.02, 0.04]} />
-            <meshStandardMaterial color="#b98d5f" roughness={0.7} />
-          </mesh>
-          <mesh position={[-hinge * (w - 0.12), height * 0.45, 0.045]}>
-            <sphereGeometry args={[0.03, 12, 12]} />
-            <meshStandardMaterial color="#cfd4de" metalness={0.8} roughness={0.25} />
-          </mesh>
-        </group>
+
+        {opening.doorType === 'sliding' ? (
+          <SlidingLeaf width={w} height={height} thickness={t} open={open} side={hinge} />
+        ) : (
+          <HingedLeaf width={w} height={height} open={open} hinge={hinge} side={side} />
+        )}
       </group>
     )
   }
 
   return (
     <group position={[cx, y0 + sill, cy]} rotation={[0, -ang, 0]}>
-      <mesh position={[0, height / 2, 0]}>
+      <mesh position={[0, height / 2, 0]} onPointerDown={onDown}>
         <boxGeometry args={[w - 0.06, height - 0.06, 0.02]} />
-        <meshPhysicalMaterial
-          color="#bcdcf5"
-          transparent
-          opacity={0.28}
-          roughness={0.05}
-          metalness={0}
-          transmission={0.6}
-        />
+        <meshPhysicalMaterial color="#bcdcf5" transparent opacity={0.28} roughness={0.05} transmission={0.6} />
+        <Highlight on={selected} />
       </mesh>
-      {/* frame */}
       {[
         [0, -height / 2 + 0.03, w, 0.06],
         [0, height / 2 - 0.03, w, 0.06],
-      ].map(([x, y, sw, sh], i) => (
+      ].map(([x, y, fw, fh], i) => (
         <mesh key={i} position={[x, y, 0]}>
-          <boxGeometry args={[sw, sh, t + 0.02]} />
-          <meshStandardMaterial color="#e7ebf2" roughness={0.7} />
+          <boxGeometry args={[fw, fh, t + 0.02]} />
+          <meshStandardMaterial color={selected ? '#cfe0ff' : '#e7ebf2'} roughness={0.7} />
         </mesh>
       ))}
       {[-1, 1].map((s) => (
         <mesh key={s} position={[(s * (w - 0.06)) / 2, height / 2, 0]}>
           <boxGeometry args={[0.06, height, t + 0.02]} />
-          <meshStandardMaterial color="#e7ebf2" roughness={0.7} />
+          <meshStandardMaterial color={selected ? '#cfe0ff' : '#e7ebf2'} roughness={0.7} />
         </mesh>
       ))}
       <mesh position={[0, -0.02, 0]}>
@@ -209,14 +335,29 @@ function OpeningDetail({ floor, opening }: { floor: Floor; opening: Opening }) {
 /* furniture                                                           */
 /* ------------------------------------------------------------------ */
 
-function Items({ floor }: { floor: Floor }) {
+function Items({ floor, pick, selection }: { floor: Floor; pick: Pick; selection: Selection | null }) {
   return (
     <group>
-      {floor.items.map((item) => (
-        <group key={item.id} position={[item.x, floor.elevation + item.z, item.y]} rotation={[0, -item.rot, 0]}>
-          {catalogItem(item.kind).build({ w: item.w, d: item.d, h: item.h, color: item.color })}
-        </group>
-      ))}
+      {floor.items.map((item) => {
+        const selected = selection?.kind === 'item' && selection.id === item.id
+        return (
+          <group
+            key={item.id}
+            position={[item.x, floor.elevation + item.z, item.y]}
+            rotation={[0, -item.rot, 0]}
+            onPointerDown={pick({ kind: 'item', id: item.id })}
+          >
+            {catalogItem(item.kind).build({ w: item.w, d: item.d, h: item.h, color: item.color })}
+            {selected ? (
+              <mesh position={[0, item.h / 2, 0]}>
+                <boxGeometry args={[item.w * 1.03, item.h * 1.03, item.d * 1.03]} />
+                <meshBasicMaterial color={SELECTED} transparent opacity={0.12} depthWrite={false} />
+                <Edges color={SELECTED} lineWidth={2} />
+              </mesh>
+            ) : null}
+          </group>
+        )
+      })}
     </group>
   )
 }
@@ -225,16 +366,28 @@ function Items({ floor }: { floor: Floor }) {
 /* scene                                                               */
 /* ------------------------------------------------------------------ */
 
-function FloorGroup({ floor, furniture, ceiling }: { floor: Floor; furniture: boolean; ceiling: boolean }) {
+function FloorGroup({
+  floor,
+  furniture,
+  ceiling,
+  pick,
+  selection,
+}: {
+  floor: Floor
+  furniture: boolean
+  ceiling: boolean
+  pick: Pick
+  selection: Selection | null
+}) {
   return (
     <group>
-      <RoomSlabs floor={floor} ceiling={ceiling} />
-      <Walls floor={floor} />
-      <Columns floor={floor} />
+      <RoomSlabs floor={floor} ceiling={ceiling} pick={pick} selection={selection} />
+      <Walls floor={floor} pick={pick} selection={selection} />
+      <Columns floor={floor} pick={pick} selection={selection} />
       {floor.openings.map((o) => (
-        <OpeningDetail key={o.id} floor={floor} opening={o} />
+        <OpeningDetail key={o.id} floor={floor} opening={o} pick={pick} selection={selection} />
       ))}
-      {furniture ? <Items floor={floor} /> : null}
+      {furniture ? <Items floor={floor} pick={pick} selection={selection} /> : null}
     </group>
   )
 }
@@ -245,6 +398,8 @@ export function Scene3D({ active }: { active: boolean }) {
   const showFurniture = useProject((s) => s.showFurniture)
   const showCeiling = useProject((s) => s.showCeiling)
   const showAllFloors = useProject((s) => s.showAllFloors)
+  const selection = useProject((s) => s.selection)
+  const select = useProject((s) => s.select)
   const floor = useActiveFloor()
 
   const b = floorBounds(floor)
@@ -254,6 +409,17 @@ export function Scene3D({ active }: { active: boolean }) {
   const visible = showAllFloors || view === 'walk' ? floors : [floor]
   const walking = view === 'walk'
 
+  /** Clicking a piece of the model selects it — but never while walking. */
+  const pickFor =
+    (target: Floor): Pick =>
+    (sel) => {
+      if (walking || target.id !== floor.id) return undefined
+      return (e: ThreeEvent<PointerEvent>) => {
+        e.stopPropagation()
+        select(sel)
+      }
+    }
+
   return (
     <Canvas
       shadows
@@ -261,6 +427,9 @@ export function Scene3D({ active }: { active: boolean }) {
       camera={{ position: [cx + span * 0.9, span * 0.85, cz + span * 1.1], fov: 55, near: 0.05, far: 500 }}
       frameloop={active ? 'always' : 'demand'}
       gl={{ antialias: true }}
+      onPointerMissed={() => {
+        if (!walking) select(null)
+      }}
       onCreated={({ scene }) => {
         scene.background = new THREE.Color('#0d1119')
         scene.fog = new THREE.Fog('#0d1119', span * 3, span * 9)
@@ -290,7 +459,14 @@ export function Scene3D({ active }: { active: boolean }) {
 
       <Suspense fallback={null}>
         {visible.map((f) => (
-          <FloorGroup key={f.id} floor={f} furniture={showFurniture} ceiling={showCeiling} />
+          <FloorGroup
+            key={f.id}
+            floor={f}
+            furniture={showFurniture}
+            ceiling={showCeiling}
+            pick={pickFor(f)}
+            selection={f.id === floor.id ? selection : null}
+          />
         ))}
       </Suspense>
 

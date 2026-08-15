@@ -80,7 +80,7 @@ export function TopBar({
         })}
       </div>
 
-      <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
+      <div className="no-scrollbar flex min-w-0 items-center gap-1 overflow-x-auto">
         {floors.map((f) => (
           <button
             key={f.id}

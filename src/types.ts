@@ -51,6 +51,7 @@ export interface Room {
 }
 
 export type OpeningKind = 'door' | 'window'
+export type DoorType = 'hinged' | 'sliding'
 
 export interface Opening {
   id: ID
@@ -66,6 +67,8 @@ export interface Opening {
   flipSide: boolean
   /** which end the hinge is on */
   flipHinge: boolean
+  /** doors only: swings on hinges or slides along the wall */
+  doorType: DoorType
 }
 
 export interface Item {

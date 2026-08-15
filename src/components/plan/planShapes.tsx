@@ -309,7 +309,41 @@ export function OpeningShape({
         onMouseDown={onDown}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
-      {opening.kind === 'door' ? (
+      {opening.kind === 'door' && opening.doorType === 'sliding' ? (
+        <>
+          {/* the leaf parked alongside the opening, with its travel */}
+          <Rect
+            x={(dir * w) / 2 - (dir > 0 ? 0 : w)}
+            y={side * (t / 2 + 0.02)}
+            width={w}
+            height={0.05}
+            fill={color}
+            opacity={0.7}
+            listening={false}
+          />
+          <Line
+            points={[(-dir * w) / 2, side * (t / 2 + 0.14), (dir * w) / 2, side * (t / 2 + 0.14)]}
+            stroke={color}
+            strokeWidth={1}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+          <Line
+            points={[
+              (dir * w) / 2 - dir * 0.1,
+              side * (t / 2 + 0.14) - 0.06,
+              (dir * w) / 2,
+              side * (t / 2 + 0.14),
+              (dir * w) / 2 - dir * 0.1,
+              side * (t / 2 + 0.14) + 0.06,
+            ]}
+            stroke={color}
+            strokeWidth={1}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+        </>
+      ) : opening.kind === 'door' ? (
         <>
           <Line
             points={[(dir * w) / 2, 0, (dir * w) / 2, side * w]}
@@ -760,11 +794,13 @@ export function CornerHandles({
   selection,
   scale,
   onDown,
+  onDblClick,
 }: {
   floor: Floor
   selection: Selection | null
   scale: number
   onDown: (id: string) => (e: KonvaEventObject<MouseEvent>) => void
+  onDblClick?: (id: string) => (e: KonvaEventObject<MouseEvent>) => void
 }) {
   return (
     <Group>
@@ -779,6 +815,7 @@ export function CornerHandles({
           strokeWidth={1.5}
           strokeScaleEnabled={false}
           onMouseDown={onDown(p.id)}
+          onDblClick={onDblClick?.(p.id)}
           onTouchStart={onDown(p.id) as unknown as (e: KonvaEventObject<TouchEvent>) => void}
         />
       ))}

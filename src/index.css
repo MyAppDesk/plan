@@ -103,6 +103,15 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
+/* horizontal strips (floor tabs) scroll without ever showing a bar */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* native dropdowns follow the dark theme */
 select option,
 select optgroup {

@@ -4,7 +4,7 @@ import { formatArea, roomArea } from '../lib/geometry'
 import type { Tool } from '../types'
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag to move · Shift-drag a wall to extrude it · double-click a wall to add a corner · grips resize',
+  select: 'Drag to move · Shift-drag a wall to extrude · double-click a wall to add a corner, a corner to remove it',
   room: 'Drag to draw a rectangular room — its size shows while you drag',
   poly: 'Click each corner · click the first one again or press Enter to close · Esc cancels',
   wall: 'Click to chain walls · Enter to finish · then set Starts at / Height on the right for a half wall or a beam',
@@ -23,6 +23,7 @@ export function StatusBar() {
   const snap = useProject((s) => s.snap)
   const gridSize = useProject((s) => s.gridSize)
   const floor = useActiveFloor()
+  const message = useProject((s) => s.message)
   const x = useCursor((s) => s.x)
   const y = useCursor((s) => s.y)
   const scale = useCursor((s) => s.scale)
@@ -42,6 +43,7 @@ export function StatusBar() {
         <span>Walk mode — click the view to look around</span>
       )}
       <span className="flex-1" />
+      {message ? <span className="chip bg-warn/15 text-warn">{message}</span> : null}
       {selection ? <span className="chip capitalize">{selection.kind} selected</span> : null}
       <span>{floor.name}</span>
       <span className="text-mist-500">·</span>
