@@ -27,6 +27,7 @@ export function emptyFloor(name: string, index = 0): Floor {
     elevation: index * 2.9,
     height: 2.6,
     wallThickness: 0.12,
+    slab: 0.3,
     points: [],
     walls: [],
     rooms: [],
@@ -61,6 +62,7 @@ export function addRoomFromLoop(floor: Floor, loop: ID[], name?: string): Room {
     loop,
     color: ROOM_COLORS[floor.rooms.length % ROOM_COLORS.length],
     height: null,
+    ceiling: true,
   }
   floor.rooms.push(room)
   for (let i = 0; i < loop.length; i++) addWall(floor, loop[i], loop[(i + 1) % loop.length])

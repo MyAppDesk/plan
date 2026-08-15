@@ -44,7 +44,7 @@ export function SettingsPanel() {
 
       <Section title="Preview">
         <Toggle label="Show furniture" checked={s.showFurniture} onChange={() => s.toggleUi('showFurniture')} />
-        <Toggle label="Show ceilings in 3D" checked={s.showCeiling} onChange={() => s.toggleUi('showCeiling')} />
+        <Toggle label="Draw ceilings in 3D" checked={s.showCeiling} onChange={() => s.toggleUi('showCeiling')} />
         <Toggle label="Show every floor in 3D" checked={s.showAllFloors} onChange={() => s.toggleUi('showAllFloors')} />
       </Section>
 

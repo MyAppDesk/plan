@@ -51,6 +51,7 @@ export function starterProject(): Project {
   addRect(g, 0, 4.2, 5.2, 2.4, 'Hallway')
   const terrace = addRect(g, 0, -3, 5.2, 3, 'Terrace')
   terrace.color = '#2f4a3a'
+  terrace.ceiling = false
   for (const [from, to] of [
     [{ x: 0, y: -3 }, { x: 5.2, y: -3 }],
     [{ x: 5.2, y: -3 }, { x: 5.2, y: 0 }],
@@ -117,6 +118,7 @@ export function starterProject(): Project {
   r.height = 2.6
   const roof = addRect(r, 0, 0, 8.8, 6.6, 'Roof terrace')
   roof.color = '#2f4a3a'
+  roof.ceiling = false
   for (const [from, to] of [
     [{ x: 0, y: 0 }, { x: 8.8, y: 0 }],
     [{ x: 8.8, y: 0 }, { x: 8.8, y: 6.6 }],
@@ -298,6 +300,7 @@ export function generateHome(opts: Partial<HomeOptions> = {}): Project {
     terrace = { x: 0, y: -3, w: living.w, h: 3 }
     const t = addRect(g, terrace.x, terrace.y, terrace.w, terrace.h, 'Terrace')
     t.color = '#2f4a3a'
+    t.ceiling = false
   }
 
   // every room now shares its walls with its neighbours
@@ -353,16 +356,17 @@ export function generateHome(opts: Partial<HomeOptions> = {}): Project {
     const stair = addItem(g, 'stairs-u', 1.45, NORTH + HALL / 2)
     stair.w = 2.4
     stair.d = Math.min(2.8, HALL - 0.2)
-    stair.h = o.ceiling + 0.3
+    stair.h = o.ceiling + g.slab
     addItem(g, 'plant', W - 0.55, NORTH + 0.5)
 
     const r = emptyFloor('Roof terrace', 1)
-    r.elevation = o.ceiling + 0.3
+    r.elevation = o.ceiling + g.slab
     r.height = o.ceiling
     r.wallThickness = o.wallThickness
     const roofRect: Rect = { x: 0, y: 0, w: W, h: NORTH + HALL + SOUTH }
     const roof = addRect(r, roofRect.x, roofRect.y, roofRect.w, roofRect.h, 'Roof terrace')
     roof.color = '#2f4a3a'
+    roof.ceiling = false
     tidyWalls(r)
     parapets(r, roofRect, 1.1, 0.15)
 

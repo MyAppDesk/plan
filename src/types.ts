@@ -48,6 +48,8 @@ export interface Room {
   color: string
   /** metres; null → inherit the floor height */
   height: number | null
+  /** false for a terrace, a patio or anything else open to the sky */
+  ceiling: boolean
 }
 
 export type OpeningKind = 'door' | 'window'
@@ -106,6 +108,8 @@ export interface Floor {
   height: number
   /** default wall thickness */
   wallThickness: number
+  /** thickness of the floor slab, drawn below the floor level */
+  slab: number
   points: Pt[]
   walls: Wall[]
   rooms: Room[]

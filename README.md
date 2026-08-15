@@ -43,7 +43,10 @@ listed under the project name in the toolbar.
 - **Sample flat** — ships with a two-storey demo: ground floor with a terrace, a half wall screening the
   shower, a beam across the living room and a service duct, plus a staircase up to a 58 m² roof terrace with a
   barbecue, a pergola over the dining table and sun loungers (Settings → Reset to sample flat).
-- **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
+- **Multiple floors** — add or duplicate floors, each with its own elevation, ceiling height and slab
+  thickness. The slab hangs below the floor level, so storeys stack solidly instead of floating.
+- **Ceilings per room** — a room can be covered or open to the sky, so a terrace stays uncovered while the
+  rooms beside it are roofed. Rooms under another floor use that floor's slab as their ceiling.
 - **Several plans** — a library of projects in this browser, each openable, renameable, duplicable and
   exportable on its own.
 - **Stairs** — straight, quarter-turn, half-turn or spiral flights, sized by width, run and rise. The step count, riser and going are worked out

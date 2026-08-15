@@ -135,6 +135,7 @@ export function normalizeProject(p: Project): Project {
     floors: (p.floors ?? []).map((f, i) => ({
       ...emptyFloor(f.name ?? `Floor ${i + 1}`, i),
       ...f,
+      slab: f.slab ?? 0.3,
       points: f.points ?? [],
       walls: (f.walls ?? []).map((w) => ({
         ...w,
@@ -148,7 +149,7 @@ export function normalizeProject(p: Project): Project {
         height: c.height ?? null,
         shape: c.shape ?? 'rect',
       })),
-      rooms: (f.rooms ?? []).map((r) => ({ ...r, height: r.height ?? null })),
+      rooms: (f.rooms ?? []).map((r) => ({ ...r, height: r.height ?? null, ceiling: r.ceiling ?? true })),
       openings: (f.openings ?? []).map((o) => ({
         ...o,
         flipSide: !!o.flipSide,
@@ -218,7 +219,7 @@ export const useProject = create<ProjectState>()(
                 floor = JSON.parse(JSON.stringify(current)) as Floor
                 floor.id = uid('f')
                 floor.name = `Floor ${index + 1}`
-                floor.elevation = current.elevation + current.height + 0.3
+                floor.elevation = current.elevation + current.height + floor.slab
                 const remap = new Map<ID, ID>()
                 floor.points = floor.points.map((p) => {
                   const nid = uid('p')
@@ -237,7 +238,7 @@ export const useProject = create<ProjectState>()(
                 floor.measures = floor.measures.map((m) => ({ ...m, id: uid('m') }))
               } else {
                 floor = emptyFloor(`Floor ${index + 1}`, index)
-                if (current) floor.elevation = current.elevation + current.height + 0.3
+                if (current) floor.elevation = current.elevation + current.height + floor.slab
               }
               s.project.floors.push(floor)
               s.activeFloorId = floor.id

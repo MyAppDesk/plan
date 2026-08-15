@@ -15,7 +15,7 @@ import {
   wallLength,
 } from '../../lib/geometry'
 import { isStair, stairLayout } from '../../lib/stairs'
-import { ColorPicker, NumberField, Row, SegButtons, Section, Select, TextField } from '../ui/fields'
+import { ColorPicker, NumberField, Row, SegButtons, Section, Select, TextField, Toggle } from '../ui/fields'
 
 interface HeightPreset {
   id: string
@@ -99,6 +99,18 @@ export function PropertiesPanel() {
             <span className="field-label">Colour</span>
             <ColorPicker value={room.color} colors={ROOM_COLORS} onChange={(color) => st.getState().updateRoom(room.id, { color })} />
           </div>
+          <Toggle
+            label="Has a ceiling"
+            checked={room.ceiling !== false}
+            onChange={() => st.getState().updateRoom(room.id, { ceiling: room.ceiling === false })}
+          />
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            {room.ceiling === false
+              ? 'Open to the sky — a terrace, a patio or a light well. Nothing is drawn overhead in 3D.'
+              : 'Covered. If there is a floor above, its slab is the ceiling; otherwise a roof is drawn at ' +
+                (room.height ?? floor.height).toFixed(2) +
+                ' m.'}
+          </p>
         </Section>
         <Section title="Measurements">
           <Stat label="Floor area" value={formatArea(roomArea(floor, room))} />
@@ -631,6 +643,19 @@ function FloorProps() {
           />
         </Row>
         <NumberField
+          label="Floor slab thickness"
+          value={floor.slab}
+          step={0.05}
+          min={0.04}
+          max={1}
+          onChange={(slab) => st.getState().updateFloor(floor.id, { slab })}
+        />
+        <p className="text-[11px] leading-relaxed text-mist-400">
+          The slab hangs below the floor level, so this floor's walls end at{' '}
+          {(floor.elevation + floor.height).toFixed(2)} m and the next floor starts at{' '}
+          {(floor.elevation + floor.height + floor.slab).toFixed(2)} m with no gap.
+        </p>
+        <NumberField
           label="Default wall thickness"
           value={floor.wallThickness}
           step={0.01}
@@ -650,6 +675,7 @@ function FloorProps() {
       </Section>
       <Section title="This floor">
         <Stat label="Rooms" value={String(floor.rooms.length)} />
+        <Stat label="Open to the sky" value={String(floor.rooms.filter((r) => r.ceiling === false).length)} />
         <Stat label="Total floor area" value={formatArea(totalArea)} />
         <Stat label="Walls" value={String(floor.walls.length)} />
         <Stat label="Doors" value={String(floor.openings.filter((o) => o.kind === 'door').length)} />

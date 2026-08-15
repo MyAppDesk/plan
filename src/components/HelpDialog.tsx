@@ -54,6 +54,7 @@ const SECTIONS = [
       ['E', 'Doors start closed — stand next to one and press E (or click) to open it'],
       ['3D', 'Click anything to select it; it lights up blue and opens in the right panel'],
       ['—', 'The panel on the 3D view switches between this floor and all floors'],
+      ['—', 'Rooms can be open to the sky (terraces) — set it per room in Properties'],
     ],
   },
   {

@@ -183,7 +183,14 @@ export function RoomShape({
       {showDims ? (
         <>
           <Label x={c.x} y={c.y - 0.16} text={room.name} scale={scale} color="#e3e8f2" size={12} bold />
-          <Label x={c.x} y={c.y + 0.16} text={formatArea(area)} scale={scale} color={C.dim} size={11} />
+          <Label
+            x={c.x}
+            y={c.y + 0.16}
+            text={room.ceiling === false ? `${formatArea(area)} · open to the sky` : formatArea(area)}
+            scale={scale}
+            color={C.dim}
+            size={11}
+          />
         </>
       ) : null}
     </Group>

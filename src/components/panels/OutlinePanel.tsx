@@ -1,4 +1,4 @@
-import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3 } from 'lucide-react'
+import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3, Sun } from 'lucide-react'
 import { useActiveFloor, useProject } from '../../store/useProject'
 import { formatArea, formatLen, roomArea, wallLength, dist } from '../../lib/geometry'
 import { Section } from '../ui/fields'
@@ -25,7 +25,11 @@ export function OutlinePanel() {
             onClick={() => select({ kind: 'room', id: r.id })}
           >
             <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: r.color }} />
-            <Square size={14} className="shrink-0 text-mist-400" />
+            {r.ceiling === false ? (
+              <Sun size={14} className="shrink-0 text-warn" />
+            ) : (
+              <Square size={14} className="shrink-0 text-mist-400" />
+            )}
             <span className="flex-1 truncate">{r.name}</span>
             <span className="tabular-nums text-mist-400">{formatArea(roomArea(floor, r))}</span>
           </button>

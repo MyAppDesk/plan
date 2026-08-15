@@ -12,6 +12,8 @@ export function ViewOptions3D() {
   const toggleUi = useProject((s) => s.toggleUi)
   const view = useProject((s) => s.view)
   const walking = view === 'walk'
+  const activeFloor = floors.find((f) => f.id === activeFloorId)
+  const openRooms = (activeFloor?.rooms ?? []).filter((r) => r.ceiling === false).length
 
   return (
     <div className="absolute top-3 right-3 w-52 rounded-lg border border-ink-600 bg-ink-900/90 p-2 backdrop-blur">
@@ -57,6 +59,13 @@ export function ViewOptions3D() {
       {walking ? (
         <p className="px-1 pb-1 text-[10px] leading-relaxed text-mist-400">
           Walk mode always shows every floor — take the stairs to change level.
+        </p>
+      ) : null}
+
+      {showCeiling && openRooms ? (
+        <p className="px-1 pb-1.5 text-[10px] leading-relaxed text-mist-400">
+          {openRooms} room{openRooms === 1 ? '' : 's'} on this floor {openRooms === 1 ? 'is' : 'are'} open to the sky
+          and stay uncovered.
         </p>
       ) : null}
 

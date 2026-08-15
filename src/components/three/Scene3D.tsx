@@ -43,15 +43,19 @@ function RoomSlabs({
   pick,
   selection,
   holes,
+  slabAbove,
 }: {
   floor: Floor
   ceiling: boolean
   pick: Pick
   selection: Selection | null
   holes: Vec[][]
+  /** underside of the floor above, so a room is not given two ceilings */
+  slabAbove: number
 }) {
   const slabs = useMemo(() => {
     const pts = pointMap(floor)
+    const thickness = Math.max(0.04, floor.slab ?? 0.3)
     return floor.rooms
       .map((room) => {
         const poly = roomPoints(floor, room, pts)
@@ -63,35 +67,40 @@ function RoomSlabs({
           if (!pointInPolygon(centre, poly)) continue
           shape.holes.push(new THREE.Path(hole.map((h) => new THREE.Vector2(h.x, h.y))))
         }
-        const geo = new THREE.ShapeGeometry(shape)
+        // a real slab with a visible edge, hanging under the floor level
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: thickness, bevelEnabled: false })
         geo.rotateX(Math.PI / 2)
-        return { room, geo }
+        const flat = new THREE.ShapeGeometry(shape)
+        flat.rotateX(Math.PI / 2)
+        return { room, geo, flat }
       })
-      .filter((s): s is { room: (typeof floor.rooms)[number]; geo: THREE.ShapeGeometry } => !!s)
+      .filter(
+        (s): s is { room: (typeof floor.rooms)[number]; geo: THREE.ExtrudeGeometry; flat: THREE.ShapeGeometry } => !!s,
+      )
   }, [floor, holes])
 
   return (
     <group>
-      {slabs.map(({ room, geo }) => {
+      {slabs.map(({ room, geo, flat }) => {
         const h = room.height ?? floor.height
+        const top = floor.elevation + h
         const selected = selection?.kind === 'room' && selection.id === room.id
+        // no ceiling on a terrace, and none where the floor above already is one
+        const drawCeiling = ceiling && room.ceiling !== false && top < slabAbove - 0.06
         return (
           <group key={room.id}>
             <mesh
               geometry={geo}
-              position={[0, floor.elevation + 0.005, 0]}
+              position={[0, floor.elevation, 0]}
               receiveShadow
+              castShadow
               onPointerDown={pick({ kind: 'room', id: room.id })}
             >
-              <meshStandardMaterial
-                color={selected ? '#a2957f' : FLOOR_COLOR}
-                roughness={0.95}
-                side={THREE.DoubleSide}
-              />
+              <meshStandardMaterial color={selected ? '#a2957f' : FLOOR_COLOR} roughness={0.95} />
               <Highlight on={selected} />
             </mesh>
-            {ceiling ? (
-              <mesh geometry={geo} position={[0, floor.elevation + h - 0.01, 0]}>
+            {drawCeiling ? (
+              <mesh geometry={flat} position={[0, top - 0.01, 0]}>
                 <meshStandardMaterial color="#f2f4f8" roughness={1} side={THREE.DoubleSide} />
               </mesh>
             ) : null}
@@ -384,6 +393,7 @@ function FloorGroup({
   pick,
   selection,
   holes,
+  slabAbove,
 }: {
   floor: Floor
   furniture: boolean
@@ -391,10 +401,18 @@ function FloorGroup({
   pick: Pick
   selection: Selection | null
   holes: Vec[][]
+  slabAbove: number
 }) {
   return (
     <group>
-      <RoomSlabs floor={floor} ceiling={ceiling} pick={pick} selection={selection} holes={holes} />
+      <RoomSlabs
+        floor={floor}
+        ceiling={ceiling}
+        pick={pick}
+        selection={selection}
+        holes={holes}
+        slabAbove={slabAbove}
+      />
       <Walls floor={floor} pick={pick} selection={selection} />
       <Columns floor={floor} pick={pick} selection={selection} />
       {floor.openings.map((o) => (
@@ -422,6 +440,14 @@ export function Scene3D({ active }: { active: boolean }) {
   const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, 6)
   const visible = showAllFloors || view === 'walk' ? floors : [floor]
   const walking = view === 'walk'
+
+  /** Underside of the next floor up, or the sky. */
+  const undersideAbove = (f: Floor): number => {
+    const above = floors
+      .filter((x) => x.elevation > f.elevation + 0.1)
+      .sort((a, b) => a.elevation - b.elevation)[0]
+    return above ? above.elevation - Math.max(0.04, above.slab ?? 0.3) : Infinity
+  }
 
   /** A flight of stairs on the floor below needs a hole in this slab. */
   const wellsBelow = (f: Floor): Vec[][] => {
@@ -489,6 +515,7 @@ export function Scene3D({ active }: { active: boolean }) {
             pick={pickFor(f)}
             selection={f.id === floor.id ? selection : null}
             holes={wellsBelow(f)}
+            slabAbove={undersideAbove(f)}
           />
         ))}
       </Suspense>
