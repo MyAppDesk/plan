@@ -118,6 +118,8 @@ export interface Floor {
 export interface Project {
   version: number
   name: string
+  /** camera height used in walk mode, derived from the person's height */
+  eyeHeight?: number
   floors: Floor[]
 }
 

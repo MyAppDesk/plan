@@ -14,16 +14,26 @@ import {
   roomPoints,
 } from '../../lib/geometry'
 
-const EYE = 1.65
-const CROUCH = 1.05
+const DEFAULT_EYE = 1.65
+const CROUCH_FACTOR = 0.64
 const SPEED = 2.6
 const RUN = 5.2
 const RADIUS = 0.26
 const REACH = 1.6
 
 /** First-person controller: mouse look, WASD, stairs, doors you have to open. */
-export function WalkControls({ floor, floors }: { floor: Floor; floors: Floor[] }) {
+export function WalkControls({
+  floor,
+  floors,
+  eyeHeight = DEFAULT_EYE,
+}: {
+  floor: Floor
+  floors: Floor[]
+  eyeHeight?: number
+}) {
   const camera = useThree((s) => s.camera)
+  const EYE = eyeHeight
+  const CROUCH = eyeHeight * CROUCH_FACTOR
   const keys = useRef<Record<string, boolean>>({})
   const forward = useRef(new THREE.Vector3())
   const right = useRef(new THREE.Vector3())
@@ -36,6 +46,7 @@ export function WalkControls({ floor, floors }: { floor: Floor; floors: Floor[] 
     const open = new Set(Object.entries(openDoors).filter(([, v]) => v).map(([id]) => id))
     return floors.flatMap((f) => absoluteSolids(f, open))
   }, [floors, openDoors])
+
 
   // drop the camera in the middle of the biggest room the first time we walk
   useEffect(() => {

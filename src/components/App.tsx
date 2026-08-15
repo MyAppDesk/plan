@@ -10,6 +10,11 @@ import { SidePanel } from './SidePanel'
 import { HelpDialog } from './HelpDialog'
 import { useProject, redo, undo } from '../store/useProject'
 import { useDoors } from '../store/useDoors'
+import { useLibrary } from '../store/useLibrary'
+import { Landing } from './start/Landing'
+import { Onboarding } from './start/Onboarding'
+import { CookieBanner } from './start/CookieBanner'
+import { ViewOptions3D } from './three/ViewOptions3D'
 import { emit } from '../lib/bus'
 import type { Tool } from '../types'
 
@@ -29,6 +34,7 @@ const TOOL_KEYS: Record<string, Tool> = {
 export function App() {
   const view = useProject((s) => s.view)
   const nearDoor = useDoors((s) => s.near)
+  const screen = useLibrary((s) => s.screen)
   const setView = useProject((s) => s.setView)
   const [help, setHelp] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -99,6 +105,22 @@ export function App() {
     reader.readAsText(file)
   }
 
+  if (screen === 'landing')
+    return (
+      <>
+        <Landing />
+        <CookieBanner />
+      </>
+    )
+
+  if (screen === 'onboarding')
+    return (
+      <>
+        <Onboarding />
+        <CookieBanner />
+      </>
+    )
+
   return (
     <div className="flex h-full flex-col">
       <TopBar onHelp={() => setHelp(true)} onExport={exportJson} onImport={() => fileRef.current?.click()} />
@@ -116,6 +138,7 @@ export function App() {
               >
                 <Scene3D active />
               </Suspense>
+              <ViewOptions3D />
             </div>
           ) : null}
 
@@ -146,6 +169,7 @@ export function App() {
 
       <StatusBar />
       {help ? <HelpDialog onClose={() => setHelp(false)} /> : null}
+      <CookieBanner />
 
       <input
         ref={fileRef}

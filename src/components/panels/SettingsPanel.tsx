@@ -1,5 +1,6 @@
 import { Layers, Trash2 } from 'lucide-react'
 import { useProject } from '../../store/useProject'
+import { useLibrary } from '../../store/useLibrary'
 import { NumberField, SegButtons, Section, TextField, Toggle } from '../ui/fields'
 
 const GRIDS = [
@@ -11,6 +12,9 @@ const GRIDS = [
 
 export function SettingsPanel() {
   const s = useProject()
+  const library = useLibrary()
+  const entries = library.entries
+  const currentId = library.currentId
   const floors = s.project.floors
 
   return (
@@ -94,15 +98,44 @@ export function SettingsPanel() {
         </button>
       </Section>
 
-      <Section title="Danger zone">
-        <button className="btn btn-danger w-full" onClick={() => {
-          if (confirm('Replace everything with the sample flat? Your current drawing will be lost.')) s.resetProject()
-        }}>
-          Reset to sample flat
-        </button>
-        <p className="text-[11px] text-mist-400">
-          Your work is saved in this browser automatically. Export the JSON from the toolbar to keep a copy or move it to
-          another device.
+      <Section title="Walkthrough">
+        <NumberField
+          label="Your height"
+          value={(s.project.eyeHeight ?? 1.65) + 0.1}
+          step={0.01}
+          min={1}
+          max={2.3}
+          onChange={(v) => s.setEyeHeight(v - 0.1)}
+        />
+        <p className="text-[11px] leading-relaxed text-mist-400">
+          Walk mode puts the camera at {(s.project.eyeHeight ?? 1.65).toFixed(2)} m, roughly eye level for that height.
+        </p>
+      </Section>
+
+      <Section title="Plans on this device">
+        {entries.map((e) => (
+          <button
+            key={e.id}
+            className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left transition-colors ${
+              e.id === currentId ? 'bg-accent-soft/40 text-mist-200' : 'text-mist-300 hover:bg-ink-800'
+            }`}
+            onClick={() => library.open(e.id)}
+          >
+            <span className="truncate">{e.name}</span>
+            <span className="text-[10px] text-mist-400">{new Date(e.updatedAt).toLocaleDateString()}</span>
+          </button>
+        ))}
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn" onClick={() => library.setScreen('onboarding')}>
+            New plan…
+          </button>
+          <button className="btn" onClick={() => library.setScreen('landing')}>
+            About Measure
+          </button>
+        </div>
+        <p className="text-[11px] leading-relaxed text-mist-400">
+          Stored in this browser only — about {(library.bytes() / 1024).toFixed(0)} kB so far. No cookies, no account,
+          nothing uploaded. Export the JSON to keep a copy or move a plan to another device.
         </p>
       </Section>
     </>

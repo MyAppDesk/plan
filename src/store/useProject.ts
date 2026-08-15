@@ -15,7 +15,17 @@ import type {
   ViewMode,
   Wall,
 } from '../types'
-import { catalogItem } from '../lib/catalog'
+import {
+  addColumn,
+  addItem,
+  addPoint,
+  addRect,
+  addRoomFromLoop,
+  addWall,
+  emptyFloor,
+} from '../lib/build'
+import { generateHome } from '../lib/templates'
+import { readProjectData, newProjectId } from './storage'
 import {
   angleOf,
   clamp,
@@ -32,268 +42,6 @@ import {
   type Vec,
 } from '../lib/geometry'
 
-const STORAGE_KEY = 'measure.project.v2'
-const WELD_TOLERANCE = 0.08
-
-/* ------------------------------------------------------------------ */
-/* factories                                                           */
-/* ------------------------------------------------------------------ */
-
-export const ROOM_COLORS = ['#22304a', '#26404a', '#33304f', '#3d3550', '#2f4a3a', '#4a3f2c', '#4a2f39', '#243a4a']
-
-export function emptyFloor(name: string, index = 0): Floor {
-  return {
-    id: uid('f'),
-    name,
-    elevation: index * 2.9,
-    height: 2.6,
-    wallThickness: 0.12,
-    points: [],
-    walls: [],
-    rooms: [],
-    columns: [],
-    openings: [],
-    items: [],
-    measures: [],
-  }
-}
-
-function addPoint(floor: Floor, x: number, y: number, tol = WELD_TOLERANCE): ID {
-  const existing = nearestPoint(floor, { x, y }, tol)
-  if (existing) return existing.id
-  const p = { id: uid('p'), x, y }
-  floor.points.push(p)
-  return p.id
-}
-
-function addWall(floor: Floor, a: ID, b: ID, thickness?: number): Wall {
-  if (a === b) throw new Error('degenerate wall')
-  const existing = findWallBetween(floor, a, b)
-  if (existing) return existing
-  const wall: Wall = { id: uid('w'), a, b, thickness: thickness ?? floor.wallThickness, base: 0, height: null }
-  floor.walls.push(wall)
-  return wall
-}
-
-function addRoomFromLoop(floor: Floor, loop: ID[], name?: string): Room {
-  const room: Room = {
-    id: uid('r'),
-    name: name ?? `Room ${floor.rooms.length + 1}`,
-    loop,
-    color: ROOM_COLORS[floor.rooms.length % ROOM_COLORS.length],
-    height: null,
-  }
-  floor.rooms.push(room)
-  for (let i = 0; i < loop.length; i++) addWall(floor, loop[i], loop[(i + 1) % loop.length])
-  return room
-}
-
-function addRect(floor: Floor, x: number, y: number, w: number, h: number, name?: string): Room {
-  const loop = [
-    addPoint(floor, x, y),
-    addPoint(floor, x + w, y),
-    addPoint(floor, x + w, y + h),
-    addPoint(floor, x, y + h),
-  ]
-  return addRoomFromLoop(floor, loop, name)
-}
-
-/** Finds the wall that runs between two corner positions. */
-function wallBetweenAt(floor: Floor, from: Vec, to: Vec): Wall | undefined {
-  const pts = pointMap(floor)
-  return floor.walls.find((w) => {
-    const a = pts.get(w.a)!
-    const b = pts.get(w.b)!
-    return (dist(a, from) < 0.2 && dist(b, to) < 0.2) || (dist(a, to) < 0.2 && dist(b, from) < 0.2)
-  })
-}
-
-function styleWall(floor: Floor, from: Vec, to: Vec, patch: Partial<Wall>) {
-  const wall = wallBetweenAt(floor, from, to)
-  if (wall) Object.assign(wall, patch)
-}
-
-/** Places an opening on the wall that runs between two corner positions. */
-function placeOpening(
-  floor: Floor,
-  from: Vec,
-  to: Vec,
-  kind: OpeningKind,
-  offset: number,
-  width: number,
-  extra: Partial<Opening> = {},
-) {
-  const pts = pointMap(floor)
-  const wall = wallBetweenAt(floor, from, to)
-  if (!wall) return
-  const a = pts.get(wall.a)!
-  const flipped = dist(a, from) > 0.2
-  const len = dist(pts.get(wall.a)!, pts.get(wall.b)!)
-  floor.openings.push({
-    id: uid('o'),
-    wallId: wall.id,
-    kind,
-    offset: flipped ? len - offset : offset,
-    width,
-    height: kind === 'door' ? 2.03 : 1.2,
-    sill: kind === 'door' ? 0 : 1.0,
-    flipSide: false,
-    flipHinge: false,
-    doorType: 'hinged',
-    ...extra,
-  })
-}
-
-function addItem(floor: Floor, kind: string, x: number, y: number, rot = 0): Item {
-  const def = catalogItem(kind)
-  const item: Item = {
-    id: uid('i'),
-    kind,
-    name: def.name,
-    x,
-    y,
-    rot,
-    w: def.w,
-    d: def.d,
-    h: def.h,
-    z: def.z ?? 0,
-    color: def.color,
-  }
-  floor.items.push(item)
-  return item
-}
-
-function addColumn(floor: Floor, x: number, y: number, patch: Partial<Column> = {}): Column {
-  const column: Column = {
-    id: uid('c'),
-    name: patch.shape === 'round' ? 'Round column' : 'Column',
-    x,
-    y,
-    w: 0.3,
-    d: 0.3,
-    rot: 0,
-    base: 0,
-    height: null,
-    shape: 'rect',
-    color: '#b9c0cd',
-    ...patch,
-  }
-  floor.columns.push(column)
-  return column
-}
-
-/** A small demo flat so the app is never an empty page. */
-export function starterProject(): Project {
-  /* ----------------------------- ground floor ----------------------------- */
-  const g = emptyFloor('Ground floor')
-  addRect(g, 0, 0, 5.2, 4.2, 'Living / kitchen')
-  addRect(g, 5.2, 0, 3.6, 4.2, 'Bedroom')
-  addRect(g, 5.2, 4.2, 3.6, 2.4, 'Bathroom')
-  addRect(g, 0, 4.2, 5.2, 2.4, 'Hallway')
-  const terrace = addRect(g, 0, -3, 5.2, 3, 'Terrace')
-  terrace.color = '#2f4a3a'
-  for (const [from, to] of [
-    [{ x: 0, y: -3 }, { x: 5.2, y: -3 }],
-    [{ x: 5.2, y: -3 }, { x: 5.2, y: 0 }],
-    [{ x: 0, y: 0 }, { x: 0, y: -3 }],
-  ] as const)
-    styleWall(g, from, to, { height: 1.1, thickness: 0.1 })
-
-  // doors: each one swings into free floor, not into the fittings
-  placeOpening(g, { x: 5.2, y: 0 }, { x: 5.2, y: 4.2 }, 'door', 3.4, 0.8)
-  placeOpening(g, { x: 5.2, y: 4.2 }, { x: 5.2, y: 6.6 }, 'door', 0.7, 0.75, { flipHinge: true })
-  placeOpening(g, { x: 0, y: 4.2 }, { x: 5.2, y: 4.2 }, 'door', 3.9, 0.9)
-  placeOpening(g, { x: 0, y: 6.6 }, { x: 5.2, y: 6.6 }, 'door', 4.6, 0.9)
-  placeOpening(g, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2, doorType: 'sliding' })
-  placeOpening(g, { x: 5.2, y: 0 }, { x: 8.8, y: 0 }, 'window', 1.8, 1.2)
-  placeOpening(g, { x: 8.8, y: 0 }, { x: 8.8, y: 4.2 }, 'window', 2.0, 1.2)
-  placeOpening(g, { x: 8.8, y: 4.2 }, { x: 8.8, y: 6.6 }, 'window', 1.2, 0.6, { height: 0.8, sill: 1.4 })
-
-  // living room along the west wall, kitchen along the north wall
-  addItem(g, 'sofa-3', 0.6, 2.0, Math.PI / 2)
-  addItem(g, 'coffee-table', 1.75, 2.0, Math.PI / 2)
-  addItem(g, 'tv-unit', 2.8, 2.0, -Math.PI / 2)
-  addItem(g, 'dining-table', 3.85, 2.6)
-  addItem(g, 'chair', 3.6, 1.85, Math.PI)
-  addItem(g, 'chair', 4.9, 2.6, -Math.PI / 2)
-  addItem(g, 'counter', 4.15, 0.42)
-  addItem(g, 'stove', 2.9, 0.42)
-  addItem(g, 'sink', 2.25, 0.42)
-  addItem(g, 'fridge', 4.8, 1.55, Math.PI / 2)
-
-  // bedroom
-  addItem(g, 'bed-double', 7.1, 1.35)
-  addItem(g, 'nightstand', 6.05, 0.6)
-  addItem(g, 'nightstand', 8.15, 0.6)
-  addItem(g, 'wardrobe', 7.2, 3.78, Math.PI)
-  addItem(g, 'desk', 8.35, 2.4, -Math.PI / 2)
-
-  // bathroom: shower in the corner behind a half wall, nothing in the door swing
-  addItem(g, 'shower', 5.75, 6.05)
-  addItem(g, 'basin', 7.05, 4.62)
-  addItem(g, 'toilet', 8.3, 5.3, Math.PI / 2)
-  addItem(g, 'washer', 6.9, 6.15)
-  const halfWall = addWall(g, addPoint(g, 6.4, 6.6), addPoint(g, 6.4, 5.35), 0.1)
-  halfWall.height = 1.2
-
-  // hallway: the stair up to the roof, clear of both door swings
-  const stair = addItem(g, 'stairs', 2.125, 5.85, -Math.PI / 2)
-  stair.w = 1.0
-  stair.d = 3.75
-  stair.h = 2.9
-  addItem(g, 'dresser', 0.85, 4.6)
-  addItem(g, 'plant', 4.8, 4.7)
-
-  // a beam crossing the living room: hangs from the ceiling, you walk under it
-  const beam = addWall(g, addPoint(g, 0, 2.3), addPoint(g, 5.2, 2.3), 0.25)
-  beam.base = 2.25
-
-  // structure
-  addColumn(g, 0.45, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
-  addColumn(g, 4.75, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
-  addColumn(g, 8.55, 4.5, { w: 0.35, d: 0.35, name: 'Service duct' })
-
-  /* ------------------------------ roof terrace ---------------------------- */
-  const r = emptyFloor('Roof terrace', 1)
-  r.height = 2.6
-  const roof = addRect(r, 0, 0, 8.8, 6.6, 'Roof terrace')
-  roof.color = '#2f4a3a'
-  for (const [from, to] of [
-    [{ x: 0, y: 0 }, { x: 8.8, y: 0 }],
-    [{ x: 8.8, y: 0 }, { x: 8.8, y: 6.6 }],
-    [{ x: 8.8, y: 6.6 }, { x: 0, y: 6.6 }],
-    [{ x: 0, y: 6.6 }, { x: 0, y: 0 }],
-  ] as const)
-    styleWall(r, from, to, { height: 1.1, thickness: 0.15 })
-
-  // guard rail around the stairwell — you arrive from the east end
-  const rail = addWall(r, addPoint(r, 0.2, 5.3), addPoint(r, 4.05, 5.3), 0.1)
-  rail.height = 0.95
-  const railEnd = addWall(r, addPoint(r, 0.2, 5.3), addPoint(r, 0.2, 6.4), 0.1)
-  railEnd.height = 0.95
-
-  // barbecue corner along the north parapet
-  addItem(r, 'bbq', 7.8, 0.75, Math.PI)
-  addItem(r, 'counter', 6.2, 0.6)
-  addItem(r, 'sink', 4.9, 0.6)
-
-  // shaded dining under a pergola
-  addItem(r, 'pergola', 6.4, 3.6)
-  addItem(r, 'dining-table', 6.4, 3.6)
-  addItem(r, 'chair', 5.4, 3.6, Math.PI / 2)
-  addItem(r, 'chair', 7.4, 3.6, -Math.PI / 2)
-  addItem(r, 'chair', 6.4, 2.85, Math.PI)
-  addItem(r, 'chair', 6.4, 4.35)
-
-  // sun loungers and greenery
-  addItem(r, 'lounger', 1.2, 1.6)
-  addItem(r, 'lounger', 2.3, 1.6)
-  addItem(r, 'plant', 0.55, 3.6)
-  addItem(r, 'plant', 8.25, 6.1)
-  addItem(r, 'plant', 3.4, 0.55)
-
-  return { version: 3, name: 'My place', floors: [g, r] }
-}
 
 /* ------------------------------------------------------------------ */
 /* store                                                               */
@@ -317,6 +65,7 @@ export interface UiState {
 
 export interface ProjectState extends UiState {
   project: Project
+  projectId: string
   activeFloorId: ID
 
   /* ui */
@@ -367,27 +116,22 @@ export interface ProjectState extends UiState {
   /* history helpers + io */
   beginDrag: () => void
   endDrag: () => void
-  loadProject: (p: Project) => void
-  resetProject: () => void
+  loadProject: (p: Project, id?: string) => void
+  setEyeHeight: (v: number) => void
 }
 
-function loadStored(): Project | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as Project
-    if (!parsed?.floors?.length) return null
-    return normalizeProject(parsed)
-  } catch {
-    return null
-  }
+export function bootProject(id: string | null): { id: string; project: Project } {
+  const stored = id ? readProjectData(id) : null
+  if (stored?.floors?.length && id) return { id, project: normalizeProject(stored) }
+  return { id: id ?? newProjectId(), project: generateHome({ name: 'My home' }) }
 }
 
 /** Fills in anything an older / hand-edited file may be missing. */
 export function normalizeProject(p: Project): Project {
   return {
-    version: 2,
+    version: 3,
     name: p.name ?? 'Untitled',
+    eyeHeight: p.eyeHeight ?? 1.65,
     floors: (p.floors ?? []).map((f, i) => ({
       ...emptyFloor(f.name ?? `Floor ${i + 1}`, i),
       ...f,
@@ -417,7 +161,7 @@ export function normalizeProject(p: Project): Project {
   }
 }
 
-const initialProject = loadStored() ?? starterProject()
+const boot = bootProject(null)
 
 let dragBase: Project | null = null
 
@@ -433,8 +177,9 @@ export const useProject = create<ProjectState>()(
         )
 
       return {
-        project: initialProject,
-        activeFloorId: initialProject.floors[0].id,
+        project: boot.project,
+        projectId: boot.id,
+        activeFloorId: boot.project.floors[0].id,
 
         tool: 'select',
         view: '2d',
@@ -625,7 +370,7 @@ export const useProject = create<ProjectState>()(
             p.x = x
             p.y = y
             if (!weld) return
-            const target = nearestPoint(floor, { x, y }, WELD_TOLERANCE * 2, [id])
+            const target = nearestPoint(floor, { x, y }, 0.16, [id])
             if (!target) return
             // merge `id` into `target`
             for (const w of floor.walls) {
@@ -960,16 +705,20 @@ export const useProject = create<ProjectState>()(
           set({ project: final }) // recorded: undo returns to `base`
         },
 
-        loadProject: (p) => {
+        loadProject: (p, id) => {
           const project = normalizeProject(p)
           if (!project.floors.length) project.floors.push(emptyFloor('Ground floor'))
-          set({ project, activeFloorId: project.floors[0].id, selection: null })
+          set({
+            project,
+            projectId: id ?? get().projectId,
+            activeFloorId: project.floors[0].id,
+            selection: null,
+            view: '2d',
+          })
+          useProject.temporal.getState().clear()
         },
 
-        resetProject: () => {
-          const p = starterProject()
-          set({ project: p, activeFloorId: p.floors[0].id, selection: null })
-        },
+        setEyeHeight: (v) => set(produce((st: ProjectState) => void (st.project.eyeHeight = clamp(v, 0.6, 2.4)))),
       }
     },
     {
@@ -979,20 +728,6 @@ export const useProject = create<ProjectState>()(
     },
   ),
 )
-
-/* autosave ---------------------------------------------------------- */
-let saveTimer: number | undefined
-useProject.subscribe((state, prev) => {
-  if (state.project === prev.project) return
-  window.clearTimeout(saveTimer)
-  saveTimer = window.setTimeout(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.project))
-    } catch {
-      /* storage full or unavailable — keep working in memory */
-    }
-  }, 400)
-})
 
 /* selectors --------------------------------------------------------- */
 export const useActiveFloor = (): Floor => {

@@ -30,7 +30,7 @@ const SECTIONS = [
       ['N', 'Window: same, with an editable sill height'],
       ['K', 'Column or pier: square or round, with its own footprint, base and height'],
       ['I', 'Place the item selected in the Catalog tab'],
-      ['—', 'Stairs are a catalogue item: width, run and rise are yours to set, and they cut their own well in the floor above'],
+      ['—', 'Stairs: straight, quarter-turn, half-turn or spiral — width, run and rise are yours, and they cut their own well in the floor above'],
       ['M', 'Tape measure between any two points'],
     ],
   },
@@ -53,6 +53,7 @@ const SECTIONS = [
       ['Walk', 'Click to look around, WASD to move, Shift to run, C to crouch, Esc to release'],
       ['E', 'Doors start closed — stand next to one and press E (or click) to open it'],
       ['3D', 'Click anything to select it; it lights up blue and opens in the right panel'],
+      ['—', 'The panel on the 3D view switches between this floor and all floors'],
     ],
   },
   {

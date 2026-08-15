@@ -1,3 +1,4 @@
+import { Columns3 } from 'lucide-react'
 import { CATALOG, CATALOG_GROUPS } from '../../lib/catalog'
 import { useProject } from '../../store/useProject'
 import { Section } from '../ui/fields'
@@ -50,12 +51,26 @@ function Thumb({ kind }: { kind: string }) {
 export function CatalogPanel() {
   const catalogKind = useProject((s) => s.catalogKind)
   const setCatalogKind = useProject((s) => s.setCatalogKind)
+  const setTool = useProject((s) => s.setTool)
+  const tool = useProject((s) => s.tool)
 
   return (
     <>
       <div className="border-b border-ink-700 px-3 py-2.5 text-[11px] leading-relaxed text-mist-400">
         Pick an item, then click on the plan to place it. Every piece is generated from its dimensions, so any size you
         type stays correct in 2D and in 3D.
+      </div>
+      <div className="border-b border-ink-700 px-3 py-2.5">
+        <button
+          className={`btn w-full ${tool === 'column' ? 'border-accent text-accent' : ''}`}
+          onClick={() => setTool('column')}
+        >
+          <Columns3 size={14} /> Column or pier (K)
+        </button>
+        <p className="mt-1.5 text-[11px] leading-relaxed text-mist-400">
+          Columns are their own thing rather than furniture: square or round, with a base height so they can also hang
+          from the ceiling.
+        </p>
       </div>
       {CATALOG_GROUPS.map((group) => (
         <Section key={group} title={group}>

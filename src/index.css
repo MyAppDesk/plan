@@ -88,6 +88,10 @@ select {
   .btn-danger {
     @apply border-danger/30 text-danger hover:border-danger/60 hover:bg-danger/10;
   }
+  .menu-row {
+    @apply flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-mist-300 transition-colors
+           hover:bg-ink-800 hover:text-mist-200;
+  }
   .chip {
     @apply rounded-full bg-ink-700 px-2 py-0.5 text-[11px] text-mist-300;
   }

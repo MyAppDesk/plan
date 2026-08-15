@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { stairLayout } from './stairs'
 
 /**
  * Furniture is procedural: every item is built from primitives that follow the
@@ -107,7 +108,92 @@ const WHITE = '#e6e9ef'
 
 const outline = (inset = 0.08): Glyph[] => [{ type: 'rect', x: inset, y: inset, w: 1 - inset * 2, h: 1 - inset * 2 }]
 
+/** Steps follow the flight's own path, so every shape builds the same way. */
+function buildStairs(kind: string) {
+  return ({ w, d, h, color }: { w: number; d: number; h: number; color: string }) => {
+    const layout = stairLayout(kind, { w, d, h })
+    return (
+      <group>
+        {layout.steps.map((s, i) => (
+          <B
+            key={i}
+            p={[s.x, Math.max(0.01, s.top - layout.riser / 2), s.z]}
+            s={[s.width, layout.riser, s.going * 1.02]}
+            rot={[0, Math.PI / 2 - s.rot, 0]}
+            color={i % 2 ? color : '#8b95a5'}
+          />
+        ))}
+        {layout.shape === 'spiral' ? (
+          <Cyl p={[0, h / 2, 0]} r={Math.min(w, d) * 0.07} h={h} color="#8d95a5" metal={0.6} />
+        ) : null}
+      </group>
+    )
+  }
+}
+
+const stairGlyph = (kind: string, w: number, d: number, h: number): Glyph[] => {
+  const layout = stairLayout(kind, { w, d, h })
+  const nx = (v: number) => v / w + 0.5
+  const ny = (v: number) => v / d + 0.5
+  return [
+    ...layout.steps.map((s) => {
+      const c = Math.cos(s.rot)
+      const si = Math.sin(s.rot)
+      // a line across the tread, perpendicular to the direction of travel
+      const hx = (-si * s.width) / 2
+      const hz = (c * s.width) / 2
+      return { type: 'line' as const, points: [nx(s.x - hx), ny(s.z - hz), nx(s.x + hx), ny(s.z + hz)] }
+    }),
+    { type: 'line', points: [nx(layout.steps[0].x), ny(layout.steps[0].z), nx(layout.steps[layout.steps.length - 1].x), ny(layout.steps[layout.steps.length - 1].z)] },
+  ]
+}
+
 export const CATALOG: CatalogItem[] = [
+  /* ------------------------------ structure ------------------------------ */
+  {
+    kind: 'stairs',
+    name: 'Straight stairs',
+    group: 'Structure',
+    w: 1.0,
+    d: 3.8,
+    h: 2.9,
+    color: '#9aa3b2',
+    glyph: stairGlyph('stairs', 1.0, 3.8, 2.9),
+    build: buildStairs('stairs'),
+  },
+  {
+    kind: 'stairs-l',
+    name: 'Quarter-turn stairs',
+    group: 'Structure',
+    w: 2.6,
+    d: 3.0,
+    h: 2.9,
+    color: '#9aa3b2',
+    glyph: stairGlyph('stairs-l', 2.6, 3.0, 2.9),
+    build: buildStairs('stairs-l'),
+  },
+  {
+    kind: 'stairs-u',
+    name: 'Half-turn stairs',
+    group: 'Structure',
+    w: 2.4,
+    d: 2.8,
+    h: 2.9,
+    color: '#9aa3b2',
+    glyph: stairGlyph('stairs-u', 2.4, 2.8, 2.9),
+    build: buildStairs('stairs-u'),
+  },
+  {
+    kind: 'stairs-spiral',
+    name: 'Spiral stairs',
+    group: 'Structure',
+    w: 1.8,
+    d: 1.8,
+    h: 2.9,
+    color: '#9aa3b2',
+    glyph: stairGlyph('stairs-spiral', 1.8, 1.8, 2.9),
+    build: buildStairs('stairs-spiral'),
+  },
   /* ------------------------------- bedroom ------------------------------- */
   {
     kind: 'bed-double',
@@ -628,120 +714,6 @@ export const CATALOG: CatalogItem[] = [
           <icosahedronGeometry args={[Math.min(w, d) * 0.5, 1]} />
           <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
-      </group>
-    ),
-  },
-  {
-    kind: 'stairs',
-    name: 'Stairs',
-    group: 'Structure',
-    w: 1.0,
-    d: 3.8,
-    h: 2.9,
-    color: '#9aa3b2',
-    glyph: [
-      ...outline(0.02),
-      ...Array.from({ length: 9 }, (_, i) => ({ type: 'line' as const, points: [0.02, 0.1 + i * 0.1, 0.98, 0.1 + i * 0.1] })),
-      // direction of travel: bottom step → top step
-      { type: 'line', points: [0.5, 0.08, 0.5, 0.92] },
-      { type: 'line', points: [0.38, 0.78, 0.5, 0.92, 0.62, 0.78] },
-    ],
-    build: ({ w, d, h, color }) => {
-      const steps = Math.max(4, Math.round(h / 0.18))
-      const rise = h / steps
-      const run = d / steps
-      return (
-        <group>
-          {Array.from({ length: steps }, (_, i) => (
-            <B
-              key={i}
-              p={[0, rise * (i + 0.5), -d / 2 + run * (i + 0.5)]}
-              s={[w, rise, run]}
-              color={i % 2 ? color : '#8b95a5'}
-            />
-          ))}
-        </group>
-      )
-    },
-  },
-  {
-    kind: 'bbq',
-    name: 'Barbecue',
-    group: 'Outdoor',
-    w: 1.2,
-    d: 0.65,
-    h: 1.1,
-    color: '#3f4550',
-    glyph: [
-      ...outline(0.05),
-      { type: 'rect', x: 0.1, y: 0.15, w: 0.55, h: 0.7 },
-      ...Array.from({ length: 4 }, (_, i) => ({ type: 'line' as const, points: [0.12 + i * 0.14, 0.18, 0.12 + i * 0.14, 0.82] })),
-    ],
-    build: ({ w, d, h, color }) => (
-      <group>
-        <B p={[0, h * 0.35, 0]} s={[w, h * 0.7, d]} color={color} metal={0.4} rough={0.45} />
-        <B p={[0, h * 0.72, 0]} s={[w, 0.05, d]} color="#20242c" rough={0.35} />
-        {/* grill bars */}
-        {Array.from({ length: 7 }, (_, i) => (
-          <B key={i} p={[-w * 0.3 + i * (w * 0.1), h * 0.75, 0]} s={[0.02, 0.02, d * 0.7]} color="#8d95a5" metal={0.9} rough={0.3} />
-        ))}
-        {/* hood, tipped back */}
-        <B p={[0, h * 0.95, -d * 0.32]} s={[w, h * 0.42, 0.06]} color="#4a515e" metal={0.5} rough={0.4} />
-        <Cyl p={[0, h * 0.4, d / 2 + 0.06]} r={0.05} h={w * 0.7} color="#9aa3b2" rot={[0, 0, Math.PI / 2]} metal={0.8} />
-      </group>
-    ),
-  },
-  {
-    kind: 'lounger',
-    name: 'Sun lounger',
-    group: 'Outdoor',
-    w: 0.7,
-    d: 1.95,
-    h: 0.6,
-    color: '#7f8b9c',
-    glyph: [
-      { type: 'rect', x: 0.08, y: 0.02, w: 0.84, h: 0.34, radius: 0.3 },
-      { type: 'rect', x: 0.08, y: 0.38, w: 0.84, h: 0.6, radius: 0.1 },
-    ],
-    build: ({ w, d, h, color }) => (
-      <group>
-        <B p={[0, h * 0.42, d * 0.08]} s={[w, 0.1, d * 0.82]} color={color} />
-        <B p={[0, h * 0.62, -d * 0.36]} s={[w, 0.08, d * 0.34]} color={color} rot={[-0.6, 0, 0]} />
-        {[-1, 1].map((sx) =>
-          [-1, 1].map((sz) => (
-            <B key={`${sx}${sz}`} p={[(sx * w) / 2.6, h * 0.19, (sz * d) / 2.8]} s={[0.05, h * 0.38, 0.05]} color="#cfd4de" metal={0.6} />
-          )),
-        )}
-      </group>
-    ),
-  },
-  {
-    kind: 'pergola',
-    name: 'Pergola',
-    group: 'Outdoor',
-    w: 3.2,
-    d: 3.2,
-    h: 2.4,
-    color: '#8b6a45',
-    glyph: [
-      ...outline(0.02),
-      ...Array.from({ length: 7 }, (_, i) => ({ type: 'line' as const, points: [0.02, 0.1 + i * 0.13, 0.98, 0.1 + i * 0.13] })),
-    ],
-    build: ({ w, d, h, color }) => (
-      <group>
-        {[
-          [-1, -1],
-          [1, -1],
-          [-1, 1],
-          [1, 1],
-        ].map(([sx, sz], i) => (
-          <B key={i} p={[(sx * (w / 2 - 0.06)) as number, h / 2, (sz * (d / 2 - 0.06)) as number]} s={[0.12, h, 0.12]} color={color} />
-        ))}
-        <B p={[0, h - 0.06, -d / 2 + 0.06]} s={[w, 0.12, 0.12]} color={color} />
-        <B p={[0, h - 0.06, d / 2 - 0.06]} s={[w, 0.12, 0.12]} color={color} />
-        {Array.from({ length: 9 }, (_, i) => (
-          <B key={i} p={[0, h + 0.02, -d / 2 + (d / 8) * i]} s={[w, 0.08, 0.06]} color="#9a7f5f" />
-        ))}
       </group>
     ),
   },

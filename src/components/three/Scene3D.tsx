@@ -413,6 +413,7 @@ export function Scene3D({ active }: { active: boolean }) {
   const showAllFloors = useProject((s) => s.showAllFloors)
   const selection = useProject((s) => s.selection)
   const select = useProject((s) => s.select)
+  const eyeHeight = useProject((s) => s.project.eyeHeight ?? 1.65)
   const floor = useActiveFloor()
 
   const b = floorBounds(floor)
@@ -493,7 +494,7 @@ export function Scene3D({ active }: { active: boolean }) {
       </Suspense>
 
       {walking ? (
-        <WalkControls floor={floor} floors={floors} />
+        <WalkControls floor={floor} floors={floors} eyeHeight={eyeHeight} />
       ) : (
         <OrbitControls
           makeDefault

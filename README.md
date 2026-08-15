@@ -5,6 +5,13 @@ furniture, then look at it in 3D and walk through it at eye height.
 
 Everything runs client-side. Your plan is saved in the browser and can be exported as JSON or PNG.
 
+## Getting started
+
+The landing page explains the app, and a two-step wizard asks what you are drawing (studio, one-bed, two-bed,
+family home with a roof terrace, the demo flat, or an empty canvas) plus your ceiling height, wall thickness
+and your own height — then generates a real, editable home. You can keep as many plans as you like; they are
+listed under the project name in the toolbar.
+
 ## Features
 
 - **Rooms (estancias)** — rectangular rooms by dragging, or free polygons corner by corner. Each room has a
@@ -37,9 +44,11 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   shower, a beam across the living room and a service duct, plus a staircase up to a 58 m² roof terrace with a
   barbecue, a pergola over the dining table and sun loungers (Settings → Reset to sample flat).
 - **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
-- **Stairs** — a straight flight sized by width, run and rise. The step count, riser and going are worked out
+- **Several plans** — a library of projects in this browser, each openable, renameable, duplicable and
+  exportable on its own.
+- **Stairs** — straight, quarter-turn, half-turn or spiral flights, sized by width, run and rise. The step count, riser and going are worked out
   for you, the rise snaps to the floor above, the flight cuts its own well in the slab above it, and in walk
-  mode you climb it to the next level.
+  mode you climb it — or come back down — between levels.
 - **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
 - **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls, columns
   and closed doors. Doors start closed: stand next to one and press `E` (or click) to swing or slide it open.

@@ -1,4 +1,5 @@
 import type { Column, Floor, ID, Item, Opening, Pt, Room, Wall } from '../types'
+import { isStair, stairProgressAt, stairWellLocal } from './stairs'
 
 export interface Vec {
   x: number
@@ -464,8 +465,6 @@ export function snapToWallFace(floor: Floor, item: Placed, maxDist = 0.35): Plac
 /* stairs                                                              */
 /* ------------------------------------------------------------------ */
 
-export const STAIR_KIND = 'stairs'
-
 /** The four corners of a rotated footprint, in plan coordinates. */
 export function footprintCorners(it: { x: number; y: number; w: number; d: number; rot: number }, grow = 0): Vec[] {
   const cos = Math.cos(it.rot)
@@ -481,32 +480,37 @@ export function footprintCorners(it: { x: number; y: number; w: number; d: numbe
 }
 
 export function stairsOf(floor: Floor): Item[] {
-  return floor.items.filter((i) => i.kind === STAIR_KIND)
+  return floor.items.filter((i) => isStair(i.kind))
+}
+
+/** Puts a local point into plan coordinates for an item. */
+export function toWorld(it: { x: number; y: number; rot: number }, lx: number, ly: number): Vec {
+  const cos = Math.cos(it.rot)
+  const sin = Math.sin(it.rot)
+  return { x: it.x + lx * cos - ly * sin, y: it.y + lx * sin + ly * cos }
+}
+
+/** Puts a plan point into an item's local space. */
+export function toLocal(it: { x: number; y: number; rot: number }, p: Vec): Vec {
+  const cos = Math.cos(it.rot)
+  const sin = Math.sin(it.rot)
+  const dx = p.x - it.x
+  const dy = p.y - it.y
+  return { x: dx * cos + dy * sin, y: -dx * sin + dy * cos }
 }
 
 /** Openings a flight of stairs needs in the slab of the floor above. */
 export function stairWells(floor: Floor): Vec[][] {
-  return stairsOf(floor).map((s) => footprintCorners(s, 0.06))
-}
-
-/** Number of steps, and the riser / going that follow from the size. */
-export function stairSteps(item: { d: number; h: number }, maxRiser = 0.19) {
-  const count = Math.max(2, Math.ceil(item.h / maxRiser))
-  return { count, riser: item.h / count, going: item.d / count }
+  return stairsOf(floor).map((s) => stairWellLocal(s.kind, s).map((p) => toWorld(s, p.x, p.y)))
 }
 
 /** Height above the floor slab when standing on a flight, or null when off it. */
 export function stairRampHeight(floor: Floor, p: Vec): number | null {
   let best: number | null = null
   for (const s of stairsOf(floor)) {
-    const cos = Math.cos(s.rot)
-    const sin = Math.sin(s.rot)
-    const dx = p.x - s.x
-    const dy = p.y - s.y
-    const lx = dx * cos + dy * sin
-    const ly = -dx * sin + dy * cos
-    if (Math.abs(lx) > s.w / 2 + 0.1 || Math.abs(ly) > s.d / 2) continue
-    const progress = clamp((ly + s.d / 2) / s.d, 0, 1)
+    const l = toLocal(s, p)
+    const progress = stairProgressAt(s.kind, s, l.x, l.y)
+    if (progress === null) continue
     const h = s.z + progress * s.h
     if (best === null || h > best) best = h
   }
@@ -523,6 +527,11 @@ export function groundHeightAt(floors: Floor[], p: Vec, currentY: number, stepUp
       if (h <= currentY + stepUp && h > best) best = h
     }
     if (f.elevation <= currentY + stepUp && f.elevation > best) {
+      // the stairwell coming up from below is a hole, not floor
+      const below = floors
+        .filter((x) => x.elevation < f.elevation - 0.1)
+        .sort((a, b) => b.elevation - a.elevation)[0]
+      if (below && stairWells(below).some((hole) => pointInPolygon(p, hole))) continue
       const pts = pointMap(f)
       if (f.rooms.some((r) => pointInPolygon(p, roomPoints(f, r, pts)))) best = f.elevation
     }

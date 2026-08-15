@@ -11,13 +11,13 @@ import {
   PanelsTopLeft,
   Plus,
   Redo2,
-  Ruler,
   Undo2,
 } from 'lucide-react'
 import { useStore } from 'zustand'
 import { useProject, redo, undo } from '../store/useProject'
 import { emit } from '../lib/bus'
 import { Tip } from './ui/Tip'
+import { ProjectMenu } from './ProjectMenu'
 import type { ViewMode } from '../types'
 
 const VIEWS: { value: ViewMode; label: string; icon: typeof Box; hint: string; key: string }[] = [
@@ -44,22 +44,13 @@ export function TopBar({
   const activeFloorId = useProject((s) => s.activeFloorId)
   const setActiveFloor = useProject((s) => s.setActiveFloor)
   const addFloor = useProject((s) => s.addFloor)
-  const name = useProject((s) => s.project.name)
 
   const canUndo = useStore(useProject.temporal, (s) => s.pastStates.length > 0)
   const canRedo = useStore(useProject.temporal, (s) => s.futureStates.length > 0)
 
   return (
     <header className="flex h-12 shrink-0 items-center gap-3 border-b border-ink-700 bg-ink-850 px-3">
-      <div className="flex items-center gap-2 pr-1">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent/15 text-accent">
-          <Ruler size={16} />
-        </span>
-        <div className="leading-tight">
-          <div className="font-semibold text-mist-200">Measure</div>
-          <div className="-mt-0.5 max-w-32 truncate text-[10px] text-mist-400">{name}</div>
-        </div>
-      </div>
+      <ProjectMenu />
 
       <div className="flex rounded-lg border border-ink-600 bg-ink-800 p-0.5">
         {VIEWS.map((v) => {

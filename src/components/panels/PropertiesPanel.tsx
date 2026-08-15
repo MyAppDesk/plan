@@ -1,12 +1,12 @@
 import { Copy, Trash2, RotateCw, FlipHorizontal2, ArrowLeftRight, Split } from 'lucide-react'
-import { ROOM_COLORS, useActiveFloor, useProject } from '../../store/useProject'
+import { useActiveFloor, useProject } from '../../store/useProject'
+import { ROOM_COLORS } from '../../lib/build'
 import { CATALOG, catalogItem } from '../../lib/catalog'
 import type { Item } from '../../types'
 import {
   dist,
   formatArea,
   formatLen,
-  stairSteps,
   polygonBounds,
   roomArea,
   roomPerimeter,
@@ -14,6 +14,7 @@ import {
   wallEnds,
   wallLength,
 } from '../../lib/geometry'
+import { isStair, stairLayout } from '../../lib/stairs'
 import { ColorPicker, NumberField, Row, SegButtons, Section, Select, TextField } from '../ui/fields'
 
 interface HeightPreset {
@@ -370,7 +371,7 @@ export function PropertiesPanel() {
             Reset to catalogue size ({def.w}×{def.d}×{def.h} m)
           </button>
         </Section>
-        {item.kind === 'stairs' ? <StairInfo item={item} /> : null}
+        {isStair(item.kind) ? <StairInfo item={item} /> : null}
         <Section title="Swap model">
           <div className="grid grid-cols-2 gap-1.5">
             {CATALOG.filter((c) => c.group === def.group).map((c) => (
@@ -544,16 +545,29 @@ function StairInfo({ item }: { item: Item }) {
   const above = floors
     .filter((f) => f.elevation > floor.elevation + 0.1)
     .sort((a, b) => a.elevation - b.elevation)[0]
-  const { count, riser, going } = stairSteps(item)
+  const { count, riser, going, run, shape } = stairLayout(item.kind, item)
   const steep = riser > 0.19 || going < 0.24
 
   return (
     <Section title="Flight">
+      <Stat
+        label="Shape"
+        value={
+          shape === 'straight'
+            ? 'Straight'
+            : shape === 'quarter'
+              ? 'Quarter turn'
+              : shape === 'half'
+                ? 'Half turn'
+                : 'Spiral'
+        }
+      />
       <Stat label="Steps" value={String(count)} />
       <Stat label="Riser" value={`${(riser * 100).toFixed(1)} cm`} />
       <Stat label="Going (tread)" value={`${(going * 100).toFixed(1)} cm`} />
       <Stat label="Rise" value={formatLen(item.h)} />
-      <Stat label="Run" value={formatLen(item.d)} />
+      <Stat label="Walking length" value={formatLen(run)} />
+      <Stat label="Footprint" value={`${formatLen(item.w)} × ${formatLen(item.d)}`} />
       {steep ? (
         <p className="text-[11px] leading-relaxed text-warn">
           Steep for a home stair. Comfortable is roughly 17–18 cm of riser and 28 cm of going — make the flight
@@ -574,7 +588,12 @@ function StairInfo({ item }: { item: Item }) {
       )}
       <button
         className="btn w-full"
-        onClick={() => useProject.getState().updateItem(item.id, { d: Math.ceil(item.h / 0.18) * 0.28 })}
+        onClick={() => {
+          const steps = Math.ceil(item.h / 0.18)
+          const needed = steps * 0.28
+          const factor = needed / Math.max(0.1, stairLayout(item.kind, { ...item, d: item.d }).run)
+          useProject.getState().updateItem(item.id, { d: Number((item.d * factor).toFixed(2)) })
+        }}
       >
         Set a comfortable run (28 cm per step)
       </button>

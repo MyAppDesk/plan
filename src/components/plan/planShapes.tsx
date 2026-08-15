@@ -2,6 +2,7 @@ import { Arc, Circle, Group, Line, Rect, Shape, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
 import type { Column, Floor, Item, Measure, Opening, Room, Selection, Wall } from '../../types'
 import { catalogItem } from '../../lib/catalog'
+import { isStair, stairLayout } from '../../lib/stairs'
 import {
   angleOf,
   dist,
@@ -412,6 +413,8 @@ export function ItemShape({
   const color = selected ? C.accent : C.item
   const gx = (v: number) => -item.w / 2 + v * item.w
   const gy = (v: number) => -item.d / 2 + v * item.d
+  // stairs draw their real treads, whatever size and shape they are
+  const stair = isStair(item.kind) ? stairLayout(item.kind, item) : null
 
   return (
     <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
@@ -428,7 +431,57 @@ export function ItemShape({
         onMouseDown={onDown}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
-      {def.glyph.map((g, i) => {
+      {stair
+        ? [
+            ...stair.steps.map((st, i) => {
+              const c = Math.cos(st.rot)
+              const si = Math.sin(st.rot)
+              const hx = (-si * st.width) / 2
+              const hz = (c * st.width) / 2
+              return (
+                <Line
+                  key={`s${i}`}
+                  points={[st.x - hx, st.z - hz, st.x + hx, st.z + hz]}
+                  stroke={color}
+                  strokeWidth={1}
+                  strokeScaleEnabled={false}
+                  listening={false}
+                />
+              )
+            }),
+            <Line
+              key="travel"
+              points={stair.steps.flatMap((st) => [st.x, st.z])}
+              stroke={color}
+              strokeWidth={1.4}
+              strokeScaleEnabled={false}
+              listening={false}
+            />,
+            (() => {
+              const last = stair.steps[stair.steps.length - 1]
+              const c = Math.cos(last.rot)
+              const si = Math.sin(last.rot)
+              const tip = { x: last.x + c * last.going, y: last.z + si * last.going }
+              return (
+                <Line
+                  key="arrow"
+                  points={[
+                    tip.x - c * 0.18 - si * 0.12,
+                    tip.y - si * 0.18 + c * 0.12,
+                    tip.x,
+                    tip.y,
+                    tip.x - c * 0.18 + si * 0.12,
+                    tip.y - si * 0.18 - c * 0.12,
+                  ]}
+                  stroke={color}
+                  strokeWidth={1.4}
+                  strokeScaleEnabled={false}
+                  listening={false}
+                />
+              )
+            })(),
+          ]
+        : def.glyph.map((g, i) => {
         if (g.type === 'rect')
           return (
             <Rect
