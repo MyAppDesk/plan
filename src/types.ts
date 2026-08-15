@@ -125,14 +125,12 @@ export interface Floor {
 
 export type GroundKind = 'grass' | 'gravel' | 'sand' | 'paving' | 'earth'
 
-/** An optional plot of land the buildings sit on. */
+/** An optional plot of land the buildings sit on — any shape, not just a box. */
 export interface Site {
   enabled: boolean
   name: string
-  x: number
-  y: number
-  w: number
-  d: number
+  /** closed outline in plan coordinates */
+  outline: { x: number; y: number }[]
   ground: GroundKind
 }
 
@@ -145,7 +143,7 @@ export interface Project {
   floors: Floor[]
 }
 
-export type EntityKind = 'point' | 'wall' | 'room' | 'opening' | 'item' | 'measure' | 'column'
+export type EntityKind = 'point' | 'wall' | 'room' | 'opening' | 'item' | 'measure' | 'column' | 'site'
 
 export interface Selection {
   kind: EntityKind
@@ -161,6 +159,7 @@ export type Tool =
   | 'window'
   | 'column'
   | 'item'
+  | 'plot'
   | 'measure'
   | 'delete'
 

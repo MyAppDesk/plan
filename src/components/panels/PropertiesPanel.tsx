@@ -7,6 +7,7 @@ import {
   dist,
   formatArea,
   formatLen,
+  polygonArea,
   polygonBounds,
   roomArea,
   roomPerimeter,
@@ -519,6 +520,57 @@ export function PropertiesPanel() {
           <Stat label="Blocks walking" value={column.base < 1.7 && top > 0.1 ? 'Yes' : 'No — you pass under it'} />
         </Section>
         <Actions onDuplicate={() => st.getState().duplicate(selection)} onDelete={() => st.getState().remove(selection)} />
+      </>
+    )
+  }
+
+  if (selection.kind === 'site') {
+    const site = useProject.getState().project.site
+    if (!site) return <FloorProps />
+    const area = polygonArea(site.outline)
+    let perimeter = 0
+    site.outline.forEach((p, i) => {
+      perimeter += dist(p, site.outline[(i + 1) % site.outline.length])
+    })
+    const b = polygonBounds(site.outline)
+    return (
+      <>
+        <Section title="Plot of land">
+          <TextField label="Name" value={site.name} onChange={(name) => st.getState().updateSite({ name })} />
+          <div>
+            <span className="field-label">Ground</span>
+            <Select
+              value={site.ground}
+              options={[
+                { value: 'grass', label: 'Grass' },
+                { value: 'gravel', label: 'Gravel' },
+                { value: 'sand', label: 'Sand' },
+                { value: 'paving', label: 'Paving' },
+                { value: 'earth', label: 'Bare earth' },
+              ]}
+              onChange={(ground) => st.getState().updateSite({ ground: ground as typeof site.ground })}
+            />
+          </div>
+          <Stat label="Area" value={formatArea(area)} />
+          <Stat label="Perimeter" value={formatLen(perimeter)} />
+          <Stat label="Corners" value={String(site.outline.length)} />
+          <Stat label="Widest points" value={`${formatLen(b.maxX - b.minX)} × ${formatLen(b.maxY - b.minY)}`} />
+        </Section>
+        <Section title="Shape">
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            Drag a green corner to move it, double-click an edge to add one, double-click a corner to remove it, or
+            drag inside the outline to move the whole plot.
+          </p>
+          <button className="btn w-full" onClick={() => st.getState().setTool('plot')}>
+            Draw a new outline (L)
+          </button>
+          <button className="btn w-full" onClick={() => st.getState().fitSiteToPlan()}>
+            Fit a rectangle around the plan
+          </button>
+          <button className="btn btn-danger w-full" onClick={() => st.getState().updateSite({ enabled: false })}>
+            Turn the plot off
+          </button>
+        </Section>
       </>
     )
   }

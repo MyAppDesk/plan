@@ -48,7 +48,8 @@ const SECTIONS = [
   {
     title: 'Outdoors',
     rows: [
-      ['—', 'Settings → Plot of land turns on a site the buildings stand on'],
+      ['L', 'Draw the plot outline — any shape, click each corner, Enter to close'],
+      ['—', 'Drag its green corners, double-click an edge to add one, a corner to remove it'],
       ['—', 'A wall can be a fence, a railing or a hedge — set Type in its properties'],
       ['—', 'Pools, cars, trees, sheds and paving live in the Site group of the catalogue'],
     ],

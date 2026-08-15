@@ -1,6 +1,7 @@
 import { Layers, Trash2 } from 'lucide-react'
 import { useProject } from '../../store/useProject'
 import { useLibrary } from '../../store/useLibrary'
+import { polygonArea } from '../../lib/geometry'
 import { NumberField, SegButtons, Section, Select, TextField, Toggle } from '../ui/fields'
 
 const GRIDS = [
@@ -122,22 +123,24 @@ export function SettingsPanel() {
                 onChange={(ground) => s.updateSite({ ground: ground as typeof site.ground })}
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <NumberField label="Width" value={site.w} step={0.5} min={1} onChange={(w) => s.updateSite({ w })} />
-              <NumberField label="Depth" value={site.d} step={0.5} min={1} onChange={(d) => s.updateSite({ d })} />
-              <NumberField label="Left edge" value={site.x} step={0.5} min={-1000} onChange={(x) => s.updateSite({ x })} />
-              <NumberField label="Top edge" value={site.y} step={0.5} min={-1000} onChange={(y) => s.updateSite({ y })} />
+            <div className="flex items-center justify-between border-b border-ink-800 py-1">
+              <span className="text-mist-400">Corners</span>
+              <span className="font-medium tabular-nums text-mist-200">{site.outline.length}</span>
             </div>
             <div className="flex items-center justify-between border-b border-ink-800 py-1">
               <span className="text-mist-400">Plot area</span>
-              <span className="font-medium tabular-nums text-mist-200">{(site.w * site.d).toFixed(1)} m²</span>
+              <span className="font-medium tabular-nums text-mist-200">{polygonArea(site.outline).toFixed(1)} m²</span>
             </div>
             <button className="btn w-full" onClick={s.fitSiteToPlan}>
               Fit the plot around everything drawn
             </button>
+            <button className="btn w-full" onClick={() => s.setTool('plot')}>
+              Redraw the outline (L)
+            </button>
             <p className="text-[11px] leading-relaxed text-mist-400">
-              Draw as many buildings as you like inside it, then use the Site catalogue for a pool, parked cars,
-              trees or a shed. For a fence or a hedge, draw a wall (W) and set its Type in the properties.
+              The plot is a polygon, so it can be any shape — drag its green corners, double-click an edge to add
+              one, double-click a corner to remove it, or press <b>L</b> and click a new outline. Draw as many
+              buildings inside it as you like; for a fence or a hedge, draw a wall (W) and set its Type.
             </p>
           </>
         ) : null}

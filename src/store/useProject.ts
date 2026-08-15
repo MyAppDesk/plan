@@ -121,6 +121,10 @@ export interface ProjectState extends UiState {
   loadProject: (p: Project, id?: string) => void
   setEyeHeight: (v: number) => void
   updateSite: (patch: Partial<Site>) => void
+  setSiteOutline: (points: Vec[]) => void
+  moveSitePoint: (index: number, x: number, y: number) => void
+  insertSitePoint: (afterIndex: number, x: number, y: number) => void
+  removeSitePoint: (index: number) => void
   fitSiteToPlan: () => void
 }
 
@@ -134,11 +138,35 @@ export function bootProject(id: string | null): { id: string; project: Project }
 export const DEFAULT_SITE: Site = {
   enabled: true,
   name: 'Plot',
-  x: -6,
-  y: -6,
-  w: 24,
-  d: 22,
+  outline: [
+    { x: -6, y: -6 },
+    { x: 18, y: -6 },
+    { x: 18, y: 16 },
+    { x: -6, y: 16 },
+  ],
   ground: 'grass',
+}
+
+/** Older files stored the plot as a rectangle. */
+export function normalizeSite(raw: Site | Record<string, unknown>): Site {
+  const site = raw as Partial<Site> & Record<string, unknown>
+  if (Array.isArray(site.outline) && site.outline.length >= 3) {
+    return { ...DEFAULT_SITE, ...site, outline: site.outline as Site['outline'] }
+  }
+  const x = Number(site.x ?? -6)
+  const y = Number(site.y ?? -6)
+  const w = Number(site.w ?? 24)
+  const d = Number(site.d ?? 22)
+  return {
+    ...DEFAULT_SITE,
+    ...site,
+    outline: [
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + d },
+      { x, y: y + d },
+    ],
+  }
 }
 
 export function normalizeProject(p: Project): Project {
@@ -146,7 +174,7 @@ export function normalizeProject(p: Project): Project {
     version: 3,
     name: p.name ?? 'Untitled',
     eyeHeight: p.eyeHeight ?? 1.65,
-    site: p.site ? { ...DEFAULT_SITE, ...p.site } : undefined,
+    site: p.site ? normalizeSite(p.site) : undefined,
     floors: (p.floors ?? []).map((f, i) => ({
       ...emptyFloor(f.name ?? `Floor ${i + 1}`, i),
       ...f,
@@ -626,6 +654,7 @@ export const useProject = create<ProjectState>()(
 
         remove: (sel) =>
           withFloor((floor, state) => {
+            if (sel.kind === 'site') return // the plot is switched off, never deleted
             if (sel.kind === 'item') floor.items = floor.items.filter((i) => i.id !== sel.id)
             if (sel.kind === 'column') floor.columns = floor.columns.filter((c) => c.id !== sel.id)
             if (sel.kind === 'measure') floor.measures = floor.measures.filter((m) => m.id !== sel.id)
@@ -743,6 +772,42 @@ export const useProject = create<ProjectState>()(
             }),
           ),
 
+        setSiteOutline: (points) =>
+          set(
+            produce((st: ProjectState) => {
+              if (points.length < 3) return
+              st.project.site = { ...(st.project.site ?? DEFAULT_SITE), enabled: true, outline: points.map((p) => ({ ...p })) }
+              st.selection = { kind: 'site', id: 'site' }
+            }),
+          ),
+
+        moveSitePoint: (index, x, y) =>
+          set(
+            produce((st: ProjectState) => {
+              const site = st.project.site
+              if (!site?.outline[index]) return
+              site.outline[index] = { x, y }
+            }),
+          ),
+
+        insertSitePoint: (afterIndex, x, y) =>
+          set(
+            produce((st: ProjectState) => {
+              const site = st.project.site
+              if (!site) return
+              site.outline.splice(afterIndex + 1, 0, { x, y })
+            }),
+          ),
+
+        removeSitePoint: (index) =>
+          set(
+            produce((st: ProjectState) => {
+              const site = st.project.site
+              if (!site || site.outline.length <= 3) return
+              site.outline.splice(index, 1)
+            }),
+          ),
+
         /** Wraps the plot around everything drawn so far, with a garden margin. */
         fitSiteToPlan: () =>
           set(
@@ -756,13 +821,19 @@ export const useProject = create<ProjectState>()(
               }
               if (!xs.length) return
               const margin = 4
+              const x0 = Math.min(...xs) - margin
+              const x1 = Math.max(...xs) + margin
+              const y0 = Math.min(...ys) - margin
+              const y1 = Math.max(...ys) + margin
               st.project.site = {
                 ...(st.project.site ?? DEFAULT_SITE),
                 enabled: true,
-                x: Math.min(...xs) - margin,
-                y: Math.min(...ys) - margin,
-                w: Math.max(...xs) - Math.min(...xs) + margin * 2,
-                d: Math.max(...ys) - Math.min(...ys) + margin * 2,
+                outline: [
+                  { x: x0, y: y0 },
+                  { x: x1, y: y0 },
+                  { x: x1, y: y1 },
+                  { x: x0, y: y1 },
+                ],
               }
             }),
           ),

@@ -157,29 +157,72 @@ const GROUND_2D: Record<string, string> = {
   earth: 'rgba(107,86,68,0.18)',
 }
 
-export function SiteShape({ site, scale }: { site: Site; scale: number }) {
+export function SiteShape({
+  site,
+  scale,
+  selected,
+  onDown,
+  onCornerDown,
+  onCornerDblClick,
+  onEdgeDblClick,
+}: {
+  site: Site
+  scale: number
+  selected?: boolean
+  onDown?: (e: KonvaEventObject<MouseEvent>) => void
+  onCornerDown?: (index: number) => (e: KonvaEventObject<MouseEvent>) => void
+  onCornerDblClick?: (index: number) => (e: KonvaEventObject<MouseEvent>) => void
+  onEdgeDblClick?: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const pts = site.outline
+  if (pts.length < 3) return null
+  const flat = pts.flatMap((p) => [p.x, p.y])
+  const b = polygonBounds(pts)
+  const area = polygonArea(pts)
+
   return (
-    <Group listening={false}>
-      <Rect
-        x={site.x}
-        y={site.y}
-        width={site.w}
-        height={site.d}
+    <Group>
+      <Line
+        points={flat}
+        closed
         fill={GROUND_2D[site.ground] ?? GROUND_2D.grass}
-        stroke="#6d8a5e"
-        strokeWidth={2}
+        stroke={selected ? C.accent : '#6d8a5e'}
+        strokeWidth={selected ? 2.5 : 2}
         strokeScaleEnabled={false}
         dash={[10, 6]}
+        hitStrokeWidth={14 / scale}
+        onMouseDown={onDown}
+        onDblClick={onEdgeDblClick}
+        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
       <Label
-        x={site.x + site.w / 2}
-        y={site.y - 0.3}
-        text={`${site.name} · ${site.w.toFixed(2)} × ${site.d.toFixed(2)} m · ${formatArea(site.w * site.d)}`}
+        x={(b.minX + b.maxX) / 2}
+        y={b.minY - 0.3}
+        text={`${site.name} · ${formatArea(area)} · ${pts.length} corners`}
         scale={scale}
-        color="#8fae7d"
+        color={selected ? C.accent : '#8fae7d'}
         size={11}
         bold
       />
+      {onCornerDown
+        ? pts.map((p, i) => (
+            <Rect
+              key={i}
+              x={p.x - 5 / scale}
+              y={p.y - 5 / scale}
+              width={10 / scale}
+              height={10 / scale}
+              fill="#0e121a"
+              stroke={selected ? C.accent : '#7ea86a'}
+              strokeWidth={1.6}
+              strokeScaleEnabled={false}
+              cornerRadius={1.5 / scale}
+              onMouseDown={onCornerDown(i)}
+              onDblClick={onCornerDblClick?.(i)}
+              onTouchStart={onCornerDown(i) as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+            />
+          ))
+        : null}
     </Group>
   )
 }

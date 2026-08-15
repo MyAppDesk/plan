@@ -39,8 +39,9 @@ listed under the project name in the toolbar.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
-- **A plot of land** — optional site the buildings stand on, with its own size, position and ground (grass,
-  gravel, sand, paving, earth). Draw as many separate buildings on it as you like.
+- **A plot of land** — optional site the buildings stand on: any polygon, not just a rectangle. Draw it with
+  `L`, drag its corners, add or remove them, and pick the ground (grass, gravel, sand, paving, earth). Draw as
+  many separate buildings on it as you like.
 - **Outdoors** — swimming pool, hot tub, cars, trees, hedges, planters, a garden bench, a shed and paving in
   the catalogue; fences, railings and hedges are wall types, so they take gates like any other wall.
 - **Tape measure** — measure any two points on the plan.
@@ -69,7 +70,7 @@ listed under the project name in the toolbar.
 | --- | --- |
 | `1` `2` `3` | Plan · 3D · Walk |
 | `V` `R` `P` `W` | Select · Rectangular room · Polygon room · Wall |
-| `D` `N` `K` | Door · Window · Column |
+| `D` `N` `K` `L` | Door · Window · Column · Plot outline |
 | `I` `M` `X` | Furniture · Tape measure · Delete |
 | `F` `G` `H` | Zoom to fit · Grid snapping · Snap furniture to walls |
 | `Ctrl/⌘ Z` | Undo (add `Shift` to redo) |

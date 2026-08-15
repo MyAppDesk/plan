@@ -10,6 +10,7 @@ const HINTS: Record<Tool, string> = {
   wall: 'Click to chain walls · Enter to finish · then set Starts at / Height on the right for a half wall or a beam',
   door: 'Click a wall to drop a door, then drag it along the wall',
   window: 'Click a wall to drop a window, then set its sill height on the right',
+  plot: 'Click each corner of the plot · Enter or click the first corner to close · Esc cancels',
   column: 'Click to drop a column · set its footprint, base and height on the right',
   item: 'Click on the plan to place the selected catalogue item',
   measure: 'Click two points to measure the distance between them',

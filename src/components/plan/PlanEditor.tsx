@@ -9,6 +9,7 @@ import { on } from '../../lib/bus'
 import {
   angleOf,
   clamp,
+  closestOnSegment,
   dist,
   floorBounds,
   nearestPoint,
@@ -69,6 +70,8 @@ type Drag =
       base: { minX: number; minY: number; maxX: number; maxY: number }
     }
   | { kind: 'extrude'; id: ID; a: Vec; b: Vec; n: Vec; offset: number }
+  | { kind: 'site-point'; index: number }
+  | { kind: 'site'; origin: Vec; applied: Vec }
   | { kind: 'rotate'; id: ID }
   | { kind: 'opening'; id: ID }
   | { kind: 'measure'; id: ID; end: 'a' | 'b' }
@@ -124,12 +127,13 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     const el = wrapRef.current
     if (!el) return
     const fb = floorBounds(floor)
-    const b = site?.enabled
+    const sb = site?.enabled ? polygonBounds(site.outline) : null
+    const b = sb
       ? {
-          minX: Math.min(fb.minX, site.x),
-          maxX: Math.max(fb.maxX, site.x + site.w),
-          minY: Math.min(fb.minY, site.y),
-          maxY: Math.max(fb.maxY, site.y + site.d),
+          minX: Math.min(fb.minX, sb.minX),
+          maxX: Math.max(fb.maxX, sb.maxX),
+          minY: Math.min(fb.minY, sb.minY),
+          maxY: Math.max(fb.maxY, sb.maxY),
         }
       : fb
     const pad = 1.2
@@ -242,6 +246,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       }
       if (e.key === 'Enter' && path.length >= 2) {
         if (tool === 'poly' && path.length >= 3) store.getState().createPolyRoom(path)
+        if (tool === 'plot' && path.length >= 3) store.getState().setSiteOutline(path)
         if (tool === 'wall') store.getState().createWallPath(path)
         setPath([])
       }
@@ -299,9 +304,12 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         setRectDraft({ a: s.p, b: s.p })
         break
       case 'poly':
+      case 'plot':
       case 'wall': {
-        if (tool === 'poly' && path.length >= 3 && dist(s.p, path[0]) < px(12)) {
-          store.getState().createPolyRoom(path)
+        const closes = tool !== 'wall' && path.length >= 3 && dist(s.p, path[0]) < px(12)
+        if (closes) {
+          if (tool === 'poly') store.getState().createPolyRoom(path)
+          else store.getState().setSiteOutline(path)
           setPath([])
           break
         }
@@ -360,7 +368,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       setCursorPos(snapTo(w).p)
       return
     }
-    if (tool === 'poly' || tool === 'wall' || tool === 'measure') {
+    if (tool === 'poly' || tool === 'plot' || tool === 'wall' || tool === 'measure') {
       const s = snapTo(w, { from: path.length ? path[path.length - 1] : measureStart })
       setCursorPos(s.p)
       setGuides(s.guides)
@@ -376,6 +384,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
 
   const applyDrag = (d: Drag, w: Vec) => {
     const st = store.getState()
+    const floorSite = st.project.site
     switch (d?.kind) {
       case 'point': {
         const s = snapTo(w, { exclude: [d.id] })
@@ -501,6 +510,23 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         st.updateMeasure(d.id, d.end === 'a' ? { ax: s.p.x, ay: s.p.y } : { bx: s.p.x, by: s.p.y })
         break
       }
+      case 'site-point': {
+        const s = snapTo(w)
+        setGuides(s.guides)
+        st.moveSitePoint(d.index, s.p.x, s.p.y)
+        break
+      }
+      case 'site': {
+        const outline = floorSite?.outline
+        if (!outline) break
+        const delta = snapDelta({ x: w.x - d.origin.x, y: w.y - d.origin.y })
+        const dx = delta.x - d.applied.x
+        const dy = delta.y - d.applied.y
+        if (!dx && !dy) break
+        st.setSiteOutline(outline.map((p) => ({ x: p.x + dx, y: p.y + dy })))
+        setDrag({ ...d, applied: delta })
+        break
+      }
     }
   }
 
@@ -545,6 +571,10 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   }
 
   const onDblClick = () => {
+    if (tool === 'plot' && path.length >= 3) {
+      store.getState().setSiteOutline(path)
+      setPath([])
+    }
     if (tool === 'poly' && path.length >= 3) {
       store.getState().createPolyRoom(path)
       setPath([])
@@ -661,6 +691,52 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     setDrag({ kind: 'room-resize', id, sx, sy, base: polygonBounds(roomPoints(floor, room)) })
   }
 
+  const startSiteDrag = (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select' || spaceRef.current) return
+    e.cancelBubble = true
+    const w = pointer()
+    if (!w) return
+    store.getState().select({ kind: 'site', id: 'site' })
+    store.getState().beginDrag()
+    setDrag({ kind: 'site', origin: w, applied: { x: 0, y: 0 } })
+  }
+
+  const startSiteCorner = (index: number) => (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select') return
+    e.cancelBubble = true
+    store.getState().select({ kind: 'site', id: 'site' })
+    store.getState().beginDrag()
+    setDrag({ kind: 'site-point', index })
+  }
+
+  /** Double-click adds a corner on an edge, or removes the one you hit. */
+  const siteCornerDblClick = (index: number) => (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select') return
+    e.cancelBubble = true
+    if ((site?.outline.length ?? 0) <= 3) {
+      store.getState().flash('A plot needs at least three corners.')
+      window.setTimeout(() => store.getState().flash(null), 2500)
+      return
+    }
+    store.getState().removeSitePoint(index)
+  }
+
+  const siteEdgeDblClick = (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select' || !site) return
+    e.cancelBubble = true
+    const w = pointer()
+    if (!w) return
+    // insert on whichever edge the click is nearest to
+    let best = { index: 0, dist: Infinity, point: w }
+    site.outline.forEach((p, i) => {
+      const q = site.outline[(i + 1) % site.outline.length]
+      const r = closestOnSegment(w, p, q)
+      if (r.dist < best.dist) best = { index: i, dist: r.dist, point: r.point }
+    })
+    const snapped = snapTo(best.point).p
+    store.getState().insertSitePoint(best.index, snapped.x, snapped.y)
+  }
+
   /** Double-clicking a corner welds its two walls back into one. */
   const dissolveCorner = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
     if (tool !== 'select') return
@@ -731,7 +807,17 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         <Layer listening={false}>{showGrid ? <GridShape view={{ ...view, w: size.w, h: size.h }} size={gridSize < 0.05 ? 0.05 : gridSize} /> : null}</Layer>
 
         <Layer>
-          {site?.enabled ? <SiteShape site={site} scale={view.scale} /> : null}
+          {site?.enabled ? (
+            <SiteShape
+              site={site}
+              scale={view.scale}
+              selected={selection?.kind === 'site'}
+              onDown={startSiteDrag}
+              onCornerDown={tool === 'select' ? startSiteCorner : undefined}
+              onCornerDblClick={siteCornerDblClick}
+              onEdgeDblClick={siteEdgeDblClick}
+            />
+          ) : null}
 
           {floor.rooms.map((room) => (
             <RoomShape
@@ -857,11 +943,11 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
             <ExtrudeDraft a={drag.a} b={drag.b} n={drag.n} offset={drag.offset} scale={view.scale} />
           ) : null}
 
-          {(tool === 'poly' || tool === 'wall') && path.length ? (
+          {(tool === 'poly' || tool === 'plot' || tool === 'wall') && path.length ? (
             <PathDraft
               pts={path}
               cursor={cursor}
-              closed={tool === 'poly' && path.length >= 3}
+              closed={tool !== 'wall' && path.length >= 3}
               scale={view.scale}
               thickness={floor.wallThickness}
             />

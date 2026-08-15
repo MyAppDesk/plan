@@ -2,7 +2,7 @@ import { Suspense, useMemo, useRef } from 'react'
 import { Canvas, useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Edges, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import type { Floor, Opening, Selection } from '../../types'
+import type { Floor, Opening, Selection, Site } from '../../types'
 import { useActiveFloor, useProject } from '../../store/useProject'
 import { useDoors } from '../../store/useDoors'
 import { catalogItem } from '../../lib/catalog'
@@ -17,6 +17,7 @@ import {
   wallSolids,
   stairWells,
   pointInPolygon,
+  polygonBounds,
   type Vec,
 } from '../../lib/geometry'
 import { WalkControls } from './WalkControls'
@@ -116,6 +117,22 @@ function RoomSlabs({
         )
       })}
     </group>
+  )
+}
+
+/** The plot itself: any polygon, given a slab of earth so its edge reads. */
+function SiteGround({ site }: { site: Site }) {
+  const geo = useMemo(() => {
+    const shape = new THREE.Shape(site.outline.map((p) => new THREE.Vector2(p.x, p.y)))
+    const g = new THREE.ExtrudeGeometry(shape, { depth: 0.25, bevelEnabled: false })
+    g.rotateX(Math.PI / 2)
+    return g
+  }, [site.outline])
+
+  return (
+    <mesh geometry={geo} position={[0, -0.02, 0]} receiveShadow>
+      <meshStandardMaterial color={GROUND_COLORS[site.ground] ?? '#4a6b3f'} roughness={1} />
+    </mesh>
   )
 }
 
@@ -523,7 +540,13 @@ export function Scene3D({ active }: { active: boolean }) {
   const b = floorBounds(floor)
   const cx = (b.minX + b.maxX) / 2
   const cz = (b.minY + b.maxY) / 2
-  const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, site?.enabled ? Math.max(site.w, site.d) : 0, 6)
+  const siteB = site?.enabled ? polygonBounds(site.outline) : null
+  const span = Math.max(
+    b.maxX - b.minX,
+    b.maxY - b.minY,
+    siteB ? Math.max(siteB.maxX - siteB.minX, siteB.maxY - siteB.minY) : 0,
+    6,
+  )
   const visible = showAllFloors || view === 'walk' ? floors : [floor]
   const walking = view === 'walk'
 
@@ -591,23 +614,7 @@ export function Scene3D({ active }: { active: boolean }) {
       </mesh>
       <gridHelper args={[span * 12, Math.round(span * 12), '#1e2534', '#161b26']} position={[cx, -0.05, cz]} />
 
-      {site?.enabled ? (
-        <group>
-          <mesh
-            rotation={[-Math.PI / 2, 0, 0]}
-            position={[site.x + site.w / 2, -0.02, site.y + site.d / 2]}
-            receiveShadow
-          >
-            <planeGeometry args={[site.w, site.d]} />
-            <meshStandardMaterial color={GROUND_COLORS[site.ground] ?? '#4a6b3f'} roughness={1} />
-          </mesh>
-          {/* a lip around the plot so the edge reads in 3D */}
-          <mesh position={[site.x + site.w / 2, -0.06, site.y + site.d / 2]}>
-            <boxGeometry args={[site.w + 0.12, 0.1, site.d + 0.12]} />
-            <meshStandardMaterial color="#3a4150" roughness={1} />
-          </mesh>
-        </group>
-      ) : null}
+      {site?.enabled ? <SiteGround site={site} /> : null}
 
       <Suspense fallback={null}>
         {visible.map((f) => (

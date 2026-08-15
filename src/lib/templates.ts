@@ -413,24 +413,30 @@ function layOutPlot(project: Project, g: Floor, o: HomeOptions) {
   const front = 7 // room for the driveway
   const back = o.pool ? 9 : 6
   const sides = 4
+  const x0 = b.minX - sides
+  const y0 = b.minY - front
+  const x1 = b.maxX + sides
+  const y1 = b.maxY + back
+  // a plot with a clipped corner, to make the point that it need not be a box
   const site = {
     enabled: true,
     name: 'Plot',
-    x: b.minX - sides,
-    y: b.minY - front,
-    w: b.maxX - b.minX + sides * 2,
-    d: b.maxY - b.minY + front + back,
     ground: 'grass' as const,
+    outline: [
+      { x: x0, y: y0 },
+      { x: x1 - 3, y: y0 },
+      { x: x1, y: y0 + 3 },
+      { x: x1, y: y1 },
+      { x: x0, y: y1 },
+    ],
   }
   project.site = site
+  const width = x1 - x0
+  const depth = y1 - y0
+  void depth
 
   // fence right on the boundary, with a gate on the street side
-  const corners = [
-    { x: site.x, y: site.y },
-    { x: site.x + site.w, y: site.y },
-    { x: site.x + site.w, y: site.y + site.d },
-    { x: site.x, y: site.y + site.d },
-  ]
+  const corners = site.outline
   const ids = corners.map((c) => addPoint(g, c.x, c.y))
   for (let i = 0; i < ids.length; i++) {
     const wall = addWall(g, ids[i], ids[(i + 1) % ids.length], 0.08)
@@ -439,41 +445,41 @@ function layOutPlot(project: Project, g: Floor, o: HomeOptions) {
     wall.base = 0
   }
   // a gate straight ahead of the front door
-  placeOpening(g, corners[0], corners[1], 'door', site.w / 2, 1.2, { height: 1.8 })
+  placeOpening(g, corners[0], corners[1], 'door', (x1 - 3 - x0) / 2, 1.2, { height: 1.8 })
 
   // driveway with a car, in front of the house
-  const driveX = site.x + site.w / 2
-  const driveY = site.y + front / 2
+  const driveX = x0 + width / 2
+  const driveY = y0 + front / 2
   const drive = addItem(g, 'paving', driveX, driveY)
   drive.w = 3.2
   drive.d = Math.max(4.5, front - 1.5)
   addItem(g, 'car', driveX, driveY)
 
   // garden at the back
-  const cx = site.x + site.w * 0.5
+  const cx = x0 + width * 0.5
   const gardenY = b.maxY + back / 2
   if (o.pool) {
     const pool = addItem(g, 'pool', cx, gardenY + 0.8, Math.PI / 2)
     pool.w = 3.5
-    pool.d = Math.min(8, site.w - 6)
+    pool.d = Math.min(8, width - 6)
     // sunbathing between the house and the water
     addItem(g, 'lounger', cx - 1.1, gardenY - 2.4)
     addItem(g, 'lounger', cx + 1.1, gardenY - 2.4)
   } else {
     addItem(g, 'bench', cx, gardenY)
   }
-  addItem(g, 'shed', site.x + 1.9, site.y + site.d - 1.6)
+  addItem(g, 'shed', x0 + 1.9, y1 - 1.6)
 
   // planting, kept a couple of metres clear of the fence
   const inside = (x: number, y: number, r: number) => ({
-    x: Math.min(Math.max(x, site.x + r), site.x + site.w - r),
-    y: Math.min(Math.max(y, site.y + r), site.y + site.d - r),
+    x: Math.min(Math.max(x, x0 + r), x1 - r),
+    y: Math.min(Math.max(y, y0 + r), y1 - r),
   })
-  const t1 = inside(site.x + 2.4, b.minY - 2.6, 2.0)
-  const t2 = inside(site.x + site.w - 2.4, site.y + site.d - 2.6, 2.0)
+  const t1 = inside(x0 + 2.4, b.minY - 2.6, 2.0)
+  const t2 = inside(x1 - 2.4, y1 - 2.6, 2.0)
   addItem(g, 'tree', t1.x, t1.y)
   addItem(g, 'tree', t2.x, t2.y)
-  const hedge = inside(site.x + site.w - 1.6, site.y + front * 0.4, 1.2)
+  const hedge = inside(x1 - 1.6, y0 + front * 0.4, 1.4)
   addItem(g, 'hedge-block', hedge.x, hedge.y, Math.PI / 2)
 }
 
