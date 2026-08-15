@@ -431,7 +431,13 @@ export function OpeningShape({
         onMouseDown={onDown}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
-      {opening.kind === 'door' && opening.doorType === 'sliding' ? (
+      {opening.kind === 'door' && opening.doorType === 'open' ? (
+        <>
+          {/* a cased opening: jambs only, nothing swinging */}
+          <Line points={[-w / 2, -t / 2, -w / 2, t / 2]} stroke={color} strokeWidth={2} strokeScaleEnabled={false} listening={false} />
+          <Line points={[w / 2, -t / 2, w / 2, t / 2]} stroke={color} strokeWidth={2} strokeScaleEnabled={false} listening={false} />
+        </>
+      ) : opening.kind === 'door' && opening.doorType === 'sliding' ? (
         <>
           {/* the leaf parked alongside the opening, with its travel */}
           <Rect
@@ -536,6 +542,8 @@ export function ItemShape({
   const gy = (v: number) => -item.d / 2 + v * item.d
   // stairs draw their real treads, whatever size and shape they are
   const stair = isStair(item.kind) ? stairLayout(item.kind, item) : null
+  // anything up at head height is drawn dotted, like a beam
+  const overhead = item.z >= 1.8
 
   return (
     <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
@@ -544,10 +552,11 @@ export function ItemShape({
         y={-item.d / 2}
         width={item.w}
         height={item.d}
-        fill={selected ? 'rgba(79,140,255,0.18)' : C.itemFill}
-        stroke={color}
+        fill={selected ? 'rgba(79,140,255,0.18)' : overhead ? 'rgba(201,168,106,0.12)' : C.itemFill}
+        stroke={selected ? color : overhead ? C.wallOverhead : color}
         strokeWidth={selected ? 2 : 1.2}
         strokeScaleEnabled={false}
+        dash={overhead ? [0.12, 0.1] : undefined}
         cornerRadius={0.02}
         onMouseDown={onDown}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
@@ -646,9 +655,13 @@ export function ItemShape({
         <Label
           x={0}
           y={item.d / 2 + 0.16}
-          text={`${item.name} · ${item.w.toFixed(2)}×${item.d.toFixed(2)}`}
+          text={
+            overhead
+              ? `${item.name} · ${item.w.toFixed(2)}×${item.d.toFixed(2)} · ${formatLen(item.z)}–${formatLen(item.z + item.h)}`
+              : `${item.name} · ${item.w.toFixed(2)}×${item.d.toFixed(2)}`
+          }
           scale={scale}
-          color={selected ? C.accent : C.dim}
+          color={selected ? C.accent : overhead ? C.wallOverhead : C.dim}
           size={9.5}
         />
       ) : null}

@@ -57,7 +57,8 @@ export interface Room {
 }
 
 export type OpeningKind = 'door' | 'window'
-export type DoorType = 'hinged' | 'sliding'
+/** A cased opening has no leaf at all — a doorway you simply walk through. */
+export type DoorType = 'hinged' | 'sliding' | 'open'
 
 export interface Opening {
   id: ID

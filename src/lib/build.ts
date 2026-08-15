@@ -235,3 +235,11 @@ export function adoptEnclosedRooms(floor: Floor): Room[] {
   }
   return added
 }
+
+/** Takes out the wall between two corner positions — for an open passage. */
+export function removeWallBetween(floor: Floor, from: Vec, to: Vec) {
+  const wall = wallBetweenAt(floor, from, to)
+  if (!wall) return
+  floor.walls = floor.walls.filter((w) => w.id !== wall.id)
+  floor.openings = floor.openings.filter((o) => o.wallId !== wall.id)
+}

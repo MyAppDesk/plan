@@ -414,7 +414,7 @@ function OpeningDetail({
           <Highlight on={selected} />
         </mesh>
 
-        {opening.doorType === 'sliding' ? (
+        {opening.doorType === 'open' ? null : opening.doorType === 'sliding' ? (
           <SlidingLeaf width={w} height={height} thickness={t} open={open} side={hinge} />
         ) : (
           <HingedLeaf width={w} height={height} open={open} hinge={hinge} side={side} />

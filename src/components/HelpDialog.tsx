@@ -29,7 +29,8 @@ const SECTIONS = [
   {
     title: 'Openings & furniture',
     rows: [
-      ['D', 'Door: click a wall, then drag it along the wall — hinged or sliding'],
+      ['D', 'Door: click a wall, then drag it along it — hinged, sliding, or a cased opening with no leaf'],
+      ['—', 'Altillos: Catalog → Structure has an open loft deck and a closed storage box, both sitting at head height'],
       ['N', 'Window: same, with an editable sill height'],
       ['K', 'Column or pier: square or round, with its own footprint, base and height'],
       ['I', 'Place the item selected in the Catalog tab'],

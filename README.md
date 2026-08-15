@@ -39,7 +39,10 @@ listed under the project name in the toolbar.
   ends up buried inside it) and lines up with the wall when it is roughly parallel. Optional, toggled with
   `H`.
 - **Doors & windows** — click a wall to place one, drag it along the wall, then set width, height, sill
-  height, hinge side and swing direction. Doors can be hinged or **sliding**. Openings are cut out of the 3D
+  height, hinge side and swing direction. Doors can be hinged, **sliding**, or a **cased opening** with no leaf
+  at all.
+- **Altillos** — storage up at head height, either an open loft deck or a closed box with doors. Both are
+  drawn dotted on the plan with their underside and top, and you walk underneath them. Openings are cut out of the 3D
   walls.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.

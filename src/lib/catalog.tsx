@@ -198,6 +198,57 @@ export const CATALOG: CatalogItem[] = [
   },
   /* ------------------------------- bedroom ------------------------------- */
   {
+    kind: 'loft-box',
+    name: 'Storage loft (closed)',
+    group: 'Structure',
+    w: 2.4,
+    d: 1.2,
+    h: 0.55,
+    z: 2.05,
+    color: '#b7a181',
+    glyph: [
+      ...outline(0.03),
+      { type: 'line', points: [0.5, 0.03, 0.5, 0.97] },
+      { type: 'line', points: [0.03, 0.03, 0.97, 0.97] },
+      { type: 'line', points: [0.03, 0.97, 0.97, 0.03] },
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        {/* the box itself: a cupboard tucked up near the ceiling */}
+        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} />
+        {/* two doors on the open face */}
+        {[-1, 1].map((sx) => (
+          <B key={sx} p={[(sx * w) / 4, h / 2, d / 2 + 0.012]} s={[w / 2 - 0.03, h - 0.05, 0.02]} color="#9c8464" />
+        ))}
+        {[-1, 1].map((sx) => (
+          <B key={`h${sx}`} p={[sx * 0.04, h / 2, d / 2 + 0.03]} s={[0.02, 0.14, 0.02]} color="#cfd4de" metal={0.8} rough={0.3} />
+        ))}
+      </group>
+    ),
+  },
+  {
+    kind: 'loft',
+    name: 'Loft deck (open)',
+    group: 'Structure',
+    w: 2.4,
+    d: 1.2,
+    h: 0.28,
+    z: 2.1,
+    color: '#a98c63',
+    glyph: [
+      ...outline(0.04),
+      { type: 'line', points: [0.04, 0.04, 0.96, 0.96] },
+      { type: 'line', points: [0.04, 0.96, 0.96, 0.04] },
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} />
+        {/* fascia along the open edge */}
+        <B p={[0, h + 0.06, d / 2 - 0.02]} s={[w, 0.12, 0.04]} color="#8d7350" />
+      </group>
+    ),
+  },
+  {
     kind: 'bed-double',
     name: 'Double bed',
     group: 'Bedroom',

@@ -384,7 +384,8 @@ export function doorBlockers(floor: Floor, openIds: Set<ID>): WallSolid[] {
   const pts = pointMap(floor)
   const out: WallSolid[] = []
   for (const o of floor.openings) {
-    if (o.kind !== 'door' || openIds.has(o.id)) continue
+    // a cased opening never has anything to block you
+    if (o.kind !== 'door' || o.doorType === 'open' || openIds.has(o.id)) continue
     const wall = floor.walls.find((w) => w.id === o.wallId)
     if (!wall) continue
     const e = wallEnds(floor, wall, pts)
@@ -427,7 +428,7 @@ export function nearestDoor(floor: Floor, p: Vec, maxDist = 1.6): { opening: Ope
   const pts = pointMap(floor)
   let best: { opening: Opening; dist: number } | null = null
   for (const o of floor.openings) {
-    if (o.kind !== 'door') continue
+    if (o.kind !== 'door' || o.doorType === 'open') continue
     const wall = floor.walls.find((w) => w.id === o.wallId)
     if (!wall) continue
     const e = wallEnds(floor, wall, pts)

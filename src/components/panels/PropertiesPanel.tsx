@@ -274,6 +274,7 @@ export function PropertiesPanel() {
               options={[
                 { value: 'hinged', label: 'Hinged' },
                 { value: 'sliding', label: 'Sliding' },
+                { value: 'open', label: 'Opening' },
               ]}
               onChange={(doorType) => st.getState().updateOpening(op.id, { doorType })}
             />
@@ -343,7 +344,9 @@ export function PropertiesPanel() {
           </div>
           {op.kind === 'door' ? (
             <p className="text-[11px] leading-relaxed text-mist-400">
-              Doors start closed in walk mode — stand next to one and press <b>E</b> (or click) to open it.
+              {op.doorType === 'open'
+                ? 'A cased opening: a doorway with jambs and a head but no leaf. Nothing to open, nothing in your way in walk mode.'
+                : 'Doors start closed in walk mode — stand next to one and press E (or click) to open it.'}
             </p>
           ) : null}
           {wall ? (
@@ -406,6 +409,7 @@ export function PropertiesPanel() {
           </button>
         </Section>
         {isStair(item.kind) ? <StairInfo item={item} /> : null}
+        {item.z >= 1.2 || item.kind.startsWith('loft') ? <OverheadInfo item={item} /> : null}
         <Section title="Swap model">
           <div className="grid grid-cols-2 gap-1.5">
             {CATALOG.filter((c) => c.group === def.group).map((c) => (
@@ -621,6 +625,43 @@ export function PropertiesPanel() {
   }
 
   return <FloorProps />
+}
+
+/** Anything carried up near the ceiling: a loft deck, a storage box, a shelf. */
+function OverheadInfo({ item }: { item: Item }) {
+  const floor = useActiveFloor()
+  const top = item.z + item.h
+  const clear = item.z
+  return (
+    <Section title="Overhead">
+      <Stat label="Underside" value={formatLen(item.z)} />
+      <Stat label="Top" value={formatLen(top)} />
+      <Stat label="Headroom under it" value={formatLen(clear)} />
+      <Stat label="Storage volume" value={`${(item.w * item.d * item.h).toFixed(2)} m³`} />
+      {top > floor.height + 0.01 ? (
+        <p className="text-[11px] leading-relaxed text-warn">
+          It pokes through the {floor.height.toFixed(2)} m ceiling — lower it or make it shallower.
+        </p>
+      ) : null}
+      <button
+        className="btn w-full"
+        onClick={() => useProject.getState().updateItem(item.id, { z: Math.max(0, floor.height - item.h) })}
+      >
+        Tuck it under the ceiling
+      </button>
+      <button
+        className="btn w-full"
+        onClick={() =>
+          useProject.getState().updateItem(item.id, { z: 2.05, h: Math.max(0.25, floor.height - 2.05) })
+        }
+      >
+        Standard altillo — 2.05 m up, filling to the ceiling
+      </button>
+      <p className="text-[11px] leading-relaxed text-mist-400">
+        Drawn dotted on the plan because it is above head height, and you walk underneath it in walk mode.
+      </p>
+    </Section>
+  )
 }
 
 /** Straight flight: the step count follows from the rise you type. */

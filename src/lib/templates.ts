@@ -2,13 +2,13 @@ import type { Floor, Project } from '../types'
 import { floorBounds } from './geometry'
 import {
   addColumn,
-  addRoomFromLoop,
   addItem,
   addPoint,
   addRect,
   addWall,
   emptyFloor,
   placeOpening,
+  removeWallBetween,
   styleWall,
   tidyWalls,
 } from './build'
@@ -527,37 +527,23 @@ export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
   g.height = o.ceiling
   g.wallThickness = o.wallThickness
 
-  const W = 11.0
+  const W = 11.4
   const D = 7.8
   const BAND = 3.5 // depth of the bedroom band
   const BATH_D = 1.9
-  const LAUNDRY_W = 1.3
   const BALCONY_W = 1.5
-  const midX = 4.6 // right edge of bedroom 1
-  const rightX = 7.0 // left edge of bedroom 2
+  const bed1R = 4.4 // right edge of bedroom 1
+  const laundryR = 5.6 // right edge of the laundry
+  const hallR = 7.4 // right edge of the hall — and the face of bedroom 2
 
-  const cuarto = addRect(g, 0, 0, midX, BAND, 'Cuarto')
-  const bano = addRect(g, midX, 0, rightX - midX, BATH_D, 'Baño')
-  const lavanderia = addRect(g, midX, BATH_D, LAUNDRY_W, BAND - BATH_D, 'Lavandería')
-  const cuarto2 = addRect(g, rightX, 0, W - rightX, BAND, 'Cuarto 2')
-
-  // the living room reaches up between the laundry and bedroom 2
-  const salonLoop = [
-    { x: BALCONY_W, y: D },
-    { x: BALCONY_W, y: BAND },
-    { x: midX + LAUNDRY_W, y: BAND },
-    { x: midX + LAUNDRY_W, y: BATH_D },
-    { x: rightX, y: BATH_D },
-    { x: rightX, y: BAND },
-    { x: W, y: BAND },
-    { x: W, y: D },
-  ]
-  const salon = addRoomFromLoop(
-    g,
-    salonLoop.map((p) => addPoint(g, p.x, p.y)),
-    'Salón cocina',
-  )
+  const cuarto = addRect(g, 0, 0, bed1R, BAND, 'Cuarto')
+  const bano = addRect(g, bed1R, 0, hallR - bed1R, BATH_D, 'Baño')
+  const lavanderia = addRect(g, bed1R, BATH_D, laundryR - bed1R, BAND - BATH_D, 'Lavandería')
+  const hall = addRect(g, laundryR, BATH_D, hallR - laundryR, BAND - BATH_D, 'Hall')
+  const cuarto2 = addRect(g, hallR, 0, W - hallR, BAND, 'Cuarto 2')
+  const salon = addRect(g, BALCONY_W, BAND, W - BALCONY_W, D - BAND, 'Salón cocina')
   const balcon = addRect(g, 0, BAND, BALCONY_W, D - BAND, 'Balcón')
+
   balcon.ceiling = false
   balcon.color = '#2f4a3a'
   salon.color = '#4a2f39'
@@ -565,29 +551,41 @@ export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
   cuarto2.color = '#4a3f2c'
   bano.color = '#26404a'
   lavanderia.color = '#33304f'
+  hall.color = '#3d3550'
 
   // shared walls become one wall each
   tidyWalls(g)
+  // the hall opens straight into the living room, so there is no wall there
+  removeWallBetween(g, { x: laundryR, y: BAND }, { x: hallR, y: BAND })
 
   /* -------------------------------- doors -------------------------------- */
-  placeOpening(g, { x: 0, y: BAND }, { x: midX, y: BAND }, 'door', 3.4, 0.85)
-  placeOpening(g, { x: midX + LAUNDRY_W, y: BATH_D }, { x: rightX, y: BATH_D }, 'door', 0.55, 0.75)
-  placeOpening(g, { x: midX + LAUNDRY_W, y: BATH_D }, { x: midX + LAUNDRY_W, y: BAND }, 'door', 0.8, 0.7)
-  placeOpening(g, { x: rightX, y: BAND }, { x: W, y: BAND }, 'door', 0.75, 0.85)
+  // bedroom 1 opens off the living room, right beside the laundry
+  placeOpening(g, { x: BALCONY_W, y: BAND }, { x: bed1R, y: BAND }, 'door', bed1R - BALCONY_W - 0.5, 0.8, {
+    flipHinge: true,
+  })
+  // bedroom 2 opens off the hall
+  placeOpening(g, { x: hallR, y: BATH_D }, { x: hallR, y: BAND }, 'door', (BAND - BATH_D) / 2, 0.8)
+  // bathroom off the hall
+  placeOpening(g, { x: laundryR, y: BATH_D }, { x: hallR, y: BATH_D }, 'door', (hallR - laundryR) / 2, 0.75)
+  // the laundry is a cased opening, no leaf
+  placeOpening(g, { x: laundryR, y: BATH_D }, { x: laundryR, y: BAND }, 'door', (BAND - BATH_D) / 2, 0.8, {
+    doorType: 'open',
+    height: 2.05,
+  })
+  // balcony and front door
   placeOpening(g, { x: BALCONY_W, y: BAND }, { x: BALCONY_W, y: D }, 'door', 2.1, 1.4, {
     height: 2.2,
     doorType: 'sliding',
   })
-  // front door, on the street side
-  placeOpening(g, { x: BALCONY_W, y: D }, { x: W, y: D }, 'door', 7.2, 0.95)
+  placeOpening(g, { x: BALCONY_W, y: D }, { x: W, y: D }, 'door', 7.6, 0.95)
 
   /* ------------------------------- windows ------------------------------- */
-  placeOpening(g, { x: 0, y: 0 }, { x: midX, y: 0 }, 'window', midX / 2, 1.5)
-  placeOpening(g, { x: midX, y: 0 }, { x: rightX, y: 0 }, 'window', (rightX - midX) / 2, 0.6, {
+  placeOpening(g, { x: 0, y: 0 }, { x: bed1R, y: 0 }, 'window', bed1R / 2, 1.5)
+  placeOpening(g, { x: bed1R, y: 0 }, { x: hallR, y: 0 }, 'window', (hallR - bed1R) / 2, 0.6, {
     height: 0.8,
     sill: 1.5,
   })
-  placeOpening(g, { x: rightX, y: 0 }, { x: W, y: 0 }, 'window', (W - rightX) / 2, 1.5)
+  placeOpening(g, { x: hallR, y: 0 }, { x: W, y: 0 }, 'window', (W - hallR) / 2, 1.5)
   placeOpening(g, { x: W, y: BAND }, { x: W, y: D }, 'window', (D - BAND) / 2, 1.6)
 
   // the balcony is open, with a railing round the outside
@@ -597,33 +595,51 @@ export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
   ] as const)
     styleWall(g, a, b, { style: 'railing', height: 1.1, thickness: 0.08 })
 
+  /* ------------------------------- altillos ------------------------------ */
+  // storage decks at 2.10 m: over the hall, and over the passage that runs from
+  // bedroom 1's door across to bedroom 2's
+  const loftHall = addItem(g, 'loft-box', (laundryR + hallR) / 2, (BATH_D + BAND) / 2)
+  loftHall.w = hallR - laundryR - 0.1
+  loftHall.d = BAND - BATH_D - 0.1
+  loftHall.z = 2.05
+  loftHall.h = Math.max(0.3, o.ceiling - 2.05)
+  loftHall.name = 'Altillo del hall'
+
+  // reaches from bedroom 1's doorway across to bedroom 2's
+  const loftPassage = addItem(g, 'loft-box', (bed1R - 0.2 + hallR) / 2, BAND + 0.6)
+  loftPassage.w = hallR - bed1R + 0.2
+  loftPassage.d = 1.1
+  loftPassage.z = 2.05
+  loftPassage.h = Math.max(0.3, o.ceiling - 2.05)
+  loftPassage.name = 'Altillo del pasillo'
+
   /* ------------------------------ furniture ------------------------------ */
-  addItem(g, 'bed-double', midX / 2, 1.3)
-  addItem(g, 'nightstand', midX / 2 - 1.05, 0.35)
-  addItem(g, 'nightstand', midX / 2 + 1.05, 0.35)
-  addItem(g, 'wardrobe', midX / 2, BAND - 0.4, Math.PI)
+  addItem(g, 'bed-double', bed1R / 2 - 0.4, 1.3)
+  addItem(g, 'nightstand', bed1R / 2 - 1.45, 0.35)
+  addItem(g, 'nightstand', bed1R / 2 + 0.65, 0.35)
+  addItem(g, 'wardrobe', bed1R / 2 - 0.5, BAND - 0.4, Math.PI)
 
-  addItem(g, 'bed-double', (rightX + W) / 2, 1.3)
-  addItem(g, 'wardrobe', (rightX + W) / 2 + 0.6, BAND - 0.4, Math.PI)
-  addItem(g, 'desk', W - 0.45, 2.1, -Math.PI / 2)
+  addItem(g, 'bed-double', (hallR + W) / 2, 1.3)
+  addItem(g, 'wardrobe', (hallR + W) / 2 + 0.6, BAND - 0.4, Math.PI)
+  addItem(g, 'desk', W - 0.45, 2.2, -Math.PI / 2)
 
-  addItem(g, 'toilet', rightX - 0.5, 0.6, Math.PI / 2)
-  addItem(g, 'basin', midX + 0.5, 0.3)
-  addItem(g, 'shower', midX + 0.6, BATH_D - 0.55)
+  addItem(g, 'toilet', hallR - 0.5, 0.6, Math.PI / 2)
+  addItem(g, 'basin', bed1R + 0.5, 0.3)
+  addItem(g, 'shower', bed1R + 0.6, BATH_D - 0.55)
 
-  addItem(g, 'washer', midX + LAUNDRY_W / 2, BAND - 0.45)
+  addItem(g, 'washer', (bed1R + laundryR) / 2, BAND - 0.45)
 
-  // kitchen along the right-hand wall of the living room, sitting area by the balcony
+  // kitchen along the right-hand wall, sitting area by the balcony
   addItem(g, 'counter', W - 0.4, BAND + 1.05, -Math.PI / 2)
   addItem(g, 'sink', W - 0.4, BAND + 2.25, -Math.PI / 2)
   addItem(g, 'stove', W - 0.4, BAND + 2.9, -Math.PI / 2)
   addItem(g, 'fridge', W - 0.45, BAND + 3.65, -Math.PI / 2)
-  addItem(g, 'dining-table', 7.4, D - 1.5)
-  addItem(g, 'chair', 7.4, D - 2.35, Math.PI)
-  addItem(g, 'chair', 7.4, D - 0.65)
-  addItem(g, 'sofa-3', 3.6, BAND + 0.8)
-  addItem(g, 'coffee-table', 3.6, BAND + 2.0)
-  addItem(g, 'tv-unit', 3.6, BAND + 3.3, Math.PI)
+  addItem(g, 'dining-table', 7.6, D - 1.5)
+  addItem(g, 'chair', 7.6, D - 2.35, Math.PI)
+  addItem(g, 'chair', 7.6, D - 0.65)
+  addItem(g, 'sofa-3', 3.6, BAND + 1.1)
+  addItem(g, 'coffee-table', 3.6, BAND + 2.3)
+  addItem(g, 'tv-unit', 3.6, BAND + 3.5, Math.PI)
   addItem(g, 'lounger', BALCONY_W / 2, D - 1.4)
   addItem(g, 'plant', BALCONY_W / 2, BAND + 0.5)
 
