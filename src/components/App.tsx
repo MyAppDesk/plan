@@ -82,6 +82,13 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [setView])
 
+  const message = useProject((s) => s.message)
+  useEffect(() => {
+    if (!message) return
+    const t = window.setTimeout(() => useProject.getState().flash(null), 4000)
+    return () => window.clearTimeout(t)
+  }, [message])
+
   const exportJson = () => {
     const project = useProject.getState().project
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })

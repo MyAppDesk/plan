@@ -4,10 +4,10 @@ import { formatArea, roomArea } from '../lib/geometry'
 import type { Tool } from '../types'
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag to move · Shift-drag a wall to extrude · double-click a wall to add a corner, a corner to remove it',
+  select: 'Drag to move · double-click a room to rename it · click a dimension figure to type an exact size',
   room: 'Drag to draw a rectangular room — its size shows while you drag',
   poly: 'Click each corner · click the first one again or press Enter to close · Esc cancels',
-  wall: 'Click to chain walls · Enter to finish · then set Starts at / Height on the right for a half wall or a beam',
+  wall: 'Click to chain walls · Enter to finish · close a space and it becomes a room you can rename',
   door: 'Click a wall to drop a door, then drag it along the wall',
   window: 'Click a wall to drop a window, then set its sill height on the right',
   plot: 'Click each corner of the plot · Enter or click the first corner to close · Esc cancels',

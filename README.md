@@ -14,6 +14,11 @@ listed under the project name in the toolbar.
 
 ## Features
 
+- **Rooms from walls** — draw walls freely; the moment they close a space it becomes a room, ready to name
+  (double-click it on the plan). "Find rooms" adopts anything enclosed later, and "Tidy walls" splits walls at
+  junctions and removes duplicates so neighbours share one wall.
+- **Dimensions you can type into** — the selection is dimensioned on the plan; click a figure and type the
+  exact size.
 - **Rooms (estancias)** — rectangular rooms by dragging, or free polygons corner by corner. Each room has a
   name, colour, its own ceiling height, and live area / perimeter / volume figures.
 - **Walls** — every edge is a real wall with its own thickness and height. Type an exact length and the wall

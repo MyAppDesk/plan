@@ -1,4 +1,4 @@
-import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3, Sun } from 'lucide-react'
+import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3, Sun, Wand2, Brush } from 'lucide-react'
 import { useActiveFloor, useProject } from '../../store/useProject'
 import { formatArea, formatLen, roomArea, wallLength, dist } from '../../lib/geometry'
 import { Section } from '../ui/fields'
@@ -17,7 +17,25 @@ export function OutlinePanel() {
   return (
     <>
       <Section title={`Rooms — ${formatArea(total)}`}>
-        {floor.rooms.length === 0 ? <Empty text="No rooms yet. Press R and drag on the plan." /> : null}
+        <div className="grid grid-cols-2 gap-1.5 pb-1">
+          <button
+            className="btn"
+            title="Turns every space your walls enclose into a room"
+            onClick={() => useProject.getState().detectRooms()}
+          >
+            <Wand2 size={14} /> Find rooms
+          </button>
+          <button
+            className="btn"
+            title="Splits walls at junctions and removes duplicates"
+            onClick={() => useProject.getState().tidyWalls()}
+          >
+            <Brush size={14} /> Tidy walls
+          </button>
+        </div>
+        {floor.rooms.length === 0 ? (
+          <Empty text="No rooms yet. Drag one with R, or draw walls with W and they become rooms as soon as they close a space." />
+        ) : null}
         {floor.rooms.map((r) => (
           <button
             key={r.id}

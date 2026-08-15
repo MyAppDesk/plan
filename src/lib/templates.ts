@@ -2,6 +2,7 @@ import type { Floor, Project } from '../types'
 import { floorBounds } from './geometry'
 import {
   addColumn,
+  addRoomFromLoop,
   addItem,
   addPoint,
   addRect,
@@ -516,6 +517,124 @@ function studio(g: Floor, o: HomeOptions, bathrooms: number): Project {
   }
 }
 
+/**
+ * A real two-bedroom flat: bedrooms and bathroom along the top, an L-shaped
+ * living/kitchen wrapping round a small laundry, and a balcony down one side.
+ */
+export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
+  const o = { ...DEFAULT_OPTIONS, ...opts }
+  const g = emptyFloor('Ground floor')
+  g.height = o.ceiling
+  g.wallThickness = o.wallThickness
+
+  const W = 11.0
+  const D = 7.8
+  const BAND = 3.5 // depth of the bedroom band
+  const BATH_D = 1.9
+  const LAUNDRY_W = 1.3
+  const BALCONY_W = 1.5
+  const midX = 4.6 // right edge of bedroom 1
+  const rightX = 7.0 // left edge of bedroom 2
+
+  const cuarto = addRect(g, 0, 0, midX, BAND, 'Cuarto')
+  const bano = addRect(g, midX, 0, rightX - midX, BATH_D, 'Baño')
+  const lavanderia = addRect(g, midX, BATH_D, LAUNDRY_W, BAND - BATH_D, 'Lavandería')
+  const cuarto2 = addRect(g, rightX, 0, W - rightX, BAND, 'Cuarto 2')
+
+  // the living room reaches up between the laundry and bedroom 2
+  const salonLoop = [
+    { x: BALCONY_W, y: D },
+    { x: BALCONY_W, y: BAND },
+    { x: midX + LAUNDRY_W, y: BAND },
+    { x: midX + LAUNDRY_W, y: BATH_D },
+    { x: rightX, y: BATH_D },
+    { x: rightX, y: BAND },
+    { x: W, y: BAND },
+    { x: W, y: D },
+  ]
+  const salon = addRoomFromLoop(
+    g,
+    salonLoop.map((p) => addPoint(g, p.x, p.y)),
+    'Salón cocina',
+  )
+  const balcon = addRect(g, 0, BAND, BALCONY_W, D - BAND, 'Balcón')
+  balcon.ceiling = false
+  balcon.color = '#2f4a3a'
+  salon.color = '#4a2f39'
+  cuarto.color = '#22304a'
+  cuarto2.color = '#4a3f2c'
+  bano.color = '#26404a'
+  lavanderia.color = '#33304f'
+
+  // shared walls become one wall each
+  tidyWalls(g)
+
+  /* -------------------------------- doors -------------------------------- */
+  placeOpening(g, { x: 0, y: BAND }, { x: midX, y: BAND }, 'door', 3.4, 0.85)
+  placeOpening(g, { x: midX + LAUNDRY_W, y: BATH_D }, { x: rightX, y: BATH_D }, 'door', 0.55, 0.75)
+  placeOpening(g, { x: midX + LAUNDRY_W, y: BATH_D }, { x: midX + LAUNDRY_W, y: BAND }, 'door', 0.8, 0.7)
+  placeOpening(g, { x: rightX, y: BAND }, { x: W, y: BAND }, 'door', 0.75, 0.85)
+  placeOpening(g, { x: BALCONY_W, y: BAND }, { x: BALCONY_W, y: D }, 'door', 2.1, 1.4, {
+    height: 2.2,
+    doorType: 'sliding',
+  })
+  // front door, on the street side
+  placeOpening(g, { x: BALCONY_W, y: D }, { x: W, y: D }, 'door', 7.2, 0.95)
+
+  /* ------------------------------- windows ------------------------------- */
+  placeOpening(g, { x: 0, y: 0 }, { x: midX, y: 0 }, 'window', midX / 2, 1.5)
+  placeOpening(g, { x: midX, y: 0 }, { x: rightX, y: 0 }, 'window', (rightX - midX) / 2, 0.6, {
+    height: 0.8,
+    sill: 1.5,
+  })
+  placeOpening(g, { x: rightX, y: 0 }, { x: W, y: 0 }, 'window', (W - rightX) / 2, 1.5)
+  placeOpening(g, { x: W, y: BAND }, { x: W, y: D }, 'window', (D - BAND) / 2, 1.6)
+
+  // the balcony is open, with a railing round the outside
+  for (const [a, b] of [
+    [{ x: 0, y: BAND }, { x: 0, y: D }],
+    [{ x: 0, y: D }, { x: BALCONY_W, y: D }],
+  ] as const)
+    styleWall(g, a, b, { style: 'railing', height: 1.1, thickness: 0.08 })
+
+  /* ------------------------------ furniture ------------------------------ */
+  addItem(g, 'bed-double', midX / 2, 1.3)
+  addItem(g, 'nightstand', midX / 2 - 1.05, 0.35)
+  addItem(g, 'nightstand', midX / 2 + 1.05, 0.35)
+  addItem(g, 'wardrobe', midX / 2, BAND - 0.4, Math.PI)
+
+  addItem(g, 'bed-double', (rightX + W) / 2, 1.3)
+  addItem(g, 'wardrobe', (rightX + W) / 2 + 0.6, BAND - 0.4, Math.PI)
+  addItem(g, 'desk', W - 0.45, 2.1, -Math.PI / 2)
+
+  addItem(g, 'toilet', rightX - 0.5, 0.6, Math.PI / 2)
+  addItem(g, 'basin', midX + 0.5, 0.3)
+  addItem(g, 'shower', midX + 0.6, BATH_D - 0.55)
+
+  addItem(g, 'washer', midX + LAUNDRY_W / 2, BAND - 0.45)
+
+  // kitchen along the right-hand wall of the living room, sitting area by the balcony
+  addItem(g, 'counter', W - 0.4, BAND + 1.05, -Math.PI / 2)
+  addItem(g, 'sink', W - 0.4, BAND + 2.25, -Math.PI / 2)
+  addItem(g, 'stove', W - 0.4, BAND + 2.9, -Math.PI / 2)
+  addItem(g, 'fridge', W - 0.45, BAND + 3.65, -Math.PI / 2)
+  addItem(g, 'dining-table', 7.4, D - 1.5)
+  addItem(g, 'chair', 7.4, D - 2.35, Math.PI)
+  addItem(g, 'chair', 7.4, D - 0.65)
+  addItem(g, 'sofa-3', 3.6, BAND + 0.8)
+  addItem(g, 'coffee-table', 3.6, BAND + 2.0)
+  addItem(g, 'tv-unit', 3.6, BAND + 3.3, Math.PI)
+  addItem(g, 'lounger', BALCONY_W / 2, D - 1.4)
+  addItem(g, 'plant', BALCONY_W / 2, BAND + 0.5)
+
+  return {
+    version: 3,
+    name: o.name === DEFAULT_OPTIONS.name ? 'Two-bed flat with balcony' : o.name,
+    eyeHeight: Math.max(1.2, o.personHeight - 0.1),
+    floors: [g],
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* the picker                                                          */
 /* ------------------------------------------------------------------ */
@@ -552,6 +671,12 @@ export const TEMPLATES: Template[] = [
     blurb: 'Three bedrooms, two bathrooms, a separate kitchen and stairs up to a roof terrace.',
     build: (o) =>
       generateHome({ ...o, bedrooms: 3, bathrooms: 2, separateKitchen: true, roofTerrace: true, terrace: true }),
+  },
+  {
+    id: 'balcony-flat',
+    name: 'Two-bed flat with balcony',
+    blurb: 'Two bedrooms, bathroom and laundry along the top, an L-shaped living/kitchen and a long balcony.',
+    build: (o) => balconyFlat(o),
   },
   {
     id: 'plot',

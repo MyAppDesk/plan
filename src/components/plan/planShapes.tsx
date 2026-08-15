@@ -238,6 +238,7 @@ export function RoomShape({
   scale,
   showDims,
   onDown,
+  onDblClick,
 }: {
   floor: Floor
   room: Room
@@ -245,6 +246,7 @@ export function RoomShape({
   scale: number
   showDims: boolean
   onDown: (e: KonvaEventObject<MouseEvent>) => void
+  onDblClick?: (e: KonvaEventObject<MouseEvent>) => void
 }) {
   const pts = roomPoints(floor, room)
   if (pts.length < 3) return null
@@ -262,6 +264,7 @@ export function RoomShape({
         strokeWidth={2}
         strokeScaleEnabled={false}
         onMouseDown={onDown}
+        onDblClick={onDblClick}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
       {showDims ? (
@@ -294,6 +297,7 @@ export function WallShape({
   showDims,
   onDown,
   onDblClick,
+  onEditLength,
 }: {
   floor: Floor
   wall: Wall
@@ -303,6 +307,7 @@ export function WallShape({
   showDims: boolean
   onDown: (e: KonvaEventObject<MouseEvent>) => void
   onDblClick?: (e: KonvaEventObject<MouseEvent>) => void
+  onEditLength?: (e: KonvaEventObject<MouseEvent>) => void
 }) {
   const e = wallEnds(floor, wall)
   if (!e) return null
@@ -348,7 +353,16 @@ export function WallShape({
         onDblClick={onDblClick}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
-      {showDims && len > 0.35 ? (
+      {selected && onEditLength ? (
+        <DimLabel
+          x={mid.x + nx}
+          y={mid.y + ny}
+          rotation={flip ? deg + 180 : deg}
+          text={formatLen(len)}
+          scale={scale}
+          onClick={onEditLength}
+        />
+      ) : showDims && len > 0.35 ? (
         <Label
           x={mid.x + nx}
           y={mid.y + ny}
@@ -730,6 +744,97 @@ export function ResizeHandles({
   )
 }
 
+/** A dimension label you can click to type an exact size. */
+function DimLabel({
+  x,
+  y,
+  text,
+  scale,
+  rotation = 0,
+  onClick,
+}: {
+  x: number
+  y: number
+  text: string
+  scale: number
+  rotation?: number
+  onClick?: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const w = Math.max(34, text.length * 7 + 14)
+  return (
+    <Group x={x} y={y} rotation={rotation} scaleX={1 / scale} scaleY={1 / scale}>
+      <Rect
+        x={-w / 2}
+        y={-9}
+        width={w}
+        height={18}
+        fill="#0e121aee"
+        stroke={C.accent}
+        strokeWidth={1}
+        cornerRadius={4}
+        onMouseDown={onClick}
+        onMouseEnter={(e) => {
+          const c = e.target.getStage()?.container()
+          if (c) c.style.cursor = 'text'
+        }}
+        onMouseLeave={(e) => {
+          const c = e.target.getStage()?.container()
+          if (c) c.style.cursor = ''
+        }}
+      />
+      <Text
+        text={text}
+        fontSize={11}
+        fontFamily="Inter, system-ui, sans-serif"
+        fill={C.accent}
+        width={w}
+        offsetX={w / 2}
+        offsetY={5.5}
+        align="center"
+        listening={false}
+      />
+    </Group>
+  )
+}
+
+/**
+ * Dimension lines around the selection — width along the top, depth down the
+ * left — with the figures editable in place.
+ */
+export function DimensionBox({
+  hw,
+  hd,
+  scale,
+  onEditW,
+  onEditD,
+}: {
+  hw: number
+  hd: number
+  scale: number
+  onEditW?: (e: KonvaEventObject<MouseEvent>) => void
+  onEditD?: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const off = 26 / scale
+  const tick = 5 / scale
+  const line = (points: number[]) => (
+    <Line points={points} stroke={C.accent} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+  )
+  return (
+    <Group>
+      {/* width */}
+      {line([-hw, -hd - off, hw, -hd - off])}
+      {line([-hw, -hd - off - tick, -hw, -hd + tick])}
+      {line([hw, -hd - off - tick, hw, -hd + tick])}
+      <DimLabel x={0} y={-hd - off} text={formatLen(hw * 2)} scale={scale} onClick={onEditW} />
+      {/* depth */}
+      {line([-hw - off, -hd, -hw - off, hd])}
+      {line([-hw - off - tick, -hd, -hw + tick, -hd])}
+      {line([-hw - off - tick, hd, -hw + tick, hd])}
+      <DimLabel x={-hw - off} y={0} text={formatLen(hd * 2)} scale={scale} rotation={-90} onClick={onEditD} />
+    </Group>
+  )
+}
+
 /**
  * Grips for whatever is selected, drawn on top of everything else so a wall or
  * a neighbouring item can never swallow the click.
@@ -741,6 +846,7 @@ export function SelectionGrips({
   onItemResize,
   onRoomResize,
   onColumnResize,
+  onEditSize,
 }: {
   floor: Floor
   selection: Selection | null
@@ -748,6 +854,7 @@ export function SelectionGrips({
   onItemResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
   onRoomResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
   onColumnResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
+  onEditSize?: (axis: 'w' | 'd') => (e: KonvaEventObject<MouseEvent>) => void
 }) {
   if (!selection) return null
 
@@ -757,6 +864,13 @@ export function SelectionGrips({
     return (
       <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
         <ResizeHandles hw={item.w / 2} hd={item.d / 2} scale={scale} onDown={onItemResize(item.id)} />
+        <DimensionBox
+          hw={item.w / 2}
+          hd={item.d / 2}
+          scale={scale}
+          onEditW={onEditSize?.('w')}
+          onEditD={onEditSize?.('d')}
+        />
       </Group>
     )
   }
@@ -767,6 +881,13 @@ export function SelectionGrips({
     return (
       <Group x={column.x} y={column.y} rotation={(column.rot * 180) / Math.PI}>
         <ResizeHandles hw={column.w / 2} hd={column.d / 2} scale={scale} onDown={onColumnResize(column.id)} />
+        <DimensionBox
+          hw={column.w / 2}
+          hd={column.d / 2}
+          scale={scale}
+          onEditW={onEditSize?.('w')}
+          onEditD={onEditSize?.('d')}
+        />
       </Group>
     )
   }
@@ -780,6 +901,13 @@ export function SelectionGrips({
     return (
       <Group x={(b.minX + b.maxX) / 2} y={(b.minY + b.maxY) / 2}>
         <ResizeHandles hw={(b.maxX - b.minX) / 2} hd={(b.maxY - b.minY) / 2} scale={scale} onDown={onRoomResize(room.id)} />
+        <DimensionBox
+          hw={(b.maxX - b.minX) / 2}
+          hd={(b.maxY - b.minY) / 2}
+          scale={scale}
+          onEditW={onEditSize?.('w')}
+          onEditD={onEditSize?.('d')}
+        />
       </Group>
     )
   }

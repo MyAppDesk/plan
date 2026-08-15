@@ -6,6 +6,7 @@ import {
   findWallBetween,
   nearestPoint,
   pointMap,
+  newEnclosedLoops,
   spliceLoopEdge,
   uid,
   type Vec,
@@ -219,4 +220,18 @@ export function tidyWalls(floor: Floor, tolerance = 0.012) {
     const to = remap.get(o.wallId)
     if (to) o.wallId = to
   }
+}
+
+/**
+ * Turns every space the walls enclose into a room. This is the bridge between
+ * "I drew some walls" and "these are rooms I can name and measure".
+ */
+export function adoptEnclosedRooms(floor: Floor): Room[] {
+  tidyWalls(floor)
+  const added: Room[] = []
+  for (const loop of newEnclosedLoops(floor)) {
+    const room = addRoomFromLoop(floor, loop)
+    added.push(room)
+  }
+  return added
 }

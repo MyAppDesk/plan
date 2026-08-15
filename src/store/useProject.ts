@@ -23,7 +23,9 @@ import {
   addRect,
   addRoomFromLoop,
   addWall,
+  adoptEnclosedRooms,
   emptyFloor,
+  tidyWalls as tidyWallsIn,
 } from '../lib/build'
 import { generateHome } from '../lib/templates'
 import { readProjectData, newProjectId } from './storage'
@@ -92,6 +94,9 @@ export interface ProjectState extends UiState {
   createRect: (x: number, y: number, w: number, h: number) => void
   createPolyRoom: (pts: Vec[]) => void
   createWallPath: (pts: Vec[]) => void
+  /** Finds the spaces the walls enclose and makes them rooms. */
+  detectRooms: () => number
+  tidyWalls: () => void
   createOpening: (wallId: ID, kind: OpeningKind, offset: number) => void
   createItem: (kind: string, x: number, y: number) => void
   createColumn: (x: number, y: number) => void
@@ -333,7 +338,41 @@ export const useProject = create<ProjectState>()(
               if (ids[i] === ids[i + 1]) continue
               last = addWall(floor, ids[i], ids[i + 1])
             }
-            if (last) state.selection = { kind: 'wall', id: last.id }
+            // walls that close a space become a room straight away
+            const rooms = adoptEnclosedRooms(floor)
+            if (rooms.length) {
+              state.selection = { kind: 'room', id: rooms[0].id }
+              state.message =
+                rooms.length === 1
+                  ? `New room found — ${rooms[0].name}. Double-click it to rename it.`
+                  : `${rooms.length} new rooms found. Double-click one to rename it.`
+            } else if (last) {
+              state.selection = { kind: 'wall', id: last.id }
+            }
+          }),
+
+        detectRooms: () => {
+          let count = 0
+          set(
+            produce((st: ProjectState) => {
+              const floor = st.project.floors.find((f) => f.id === st.activeFloorId)
+              if (!floor) return
+              const rooms = adoptEnclosedRooms(floor)
+              count = rooms.length
+              if (rooms.length) st.selection = { kind: 'room', id: rooms[0].id }
+              st.message = rooms.length
+                ? `${rooms.length} new room${rooms.length === 1 ? '' : 's'} found.`
+                : 'Every enclosed space is already a room.'
+            }),
+          )
+          return count
+        },
+
+        tidyWalls: () =>
+          withFloor((floor, state) => {
+            const before = floor.walls.length
+            tidyWallsIn(floor)
+            state.message = `Walls tidied — ${before} → ${floor.walls.length}.`
           }),
 
         createOpening: (wallId, kind, offset) =>

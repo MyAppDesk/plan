@@ -6,7 +6,8 @@ const SECTIONS = [
     rows: [
       ['R', 'Drag a rectangular room — width, depth and area update while you drag'],
       ['P', 'Polygon room: click each corner, Enter or click the first corner to close'],
-      ['W', 'Single wall: chain clicks, Enter or double-click to finish'],
+      ['W', 'Walls: chain clicks, Enter to finish. Close a space and it becomes a room automatically'],
+      ['—', 'Outline tab → Find rooms adopts any space your walls enclose; Tidy walls merges junctions'],
       ['—', 'Corners weld to each other, so neighbouring rooms share one wall'],
     ],
   },
@@ -15,6 +16,8 @@ const SECTIONS = [
     rows: [
       ['V', 'Select and drag corners, walls, rooms, openings and furniture'],
       ['—', 'Drag the eight grips around a room or a piece of furniture to resize it'],
+      ['—', 'The selection is dimensioned — click a figure to type an exact size'],
+      ['2×', 'Double-click a room to rename it right on the plan'],
       ['—', 'The right panel edits exact lengths, thicknesses, heights and sizes'],
       ['—', 'Changing a wall length moves its far corner along the wall'],
       ['2×', 'Double-click a wall to drop a corner on it, then drag it out to bend the run'],

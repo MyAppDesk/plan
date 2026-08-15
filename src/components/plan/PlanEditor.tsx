@@ -18,6 +18,7 @@ import {
   polygonBounds,
   roomPoints,
   snapToWallFace,
+  wallLength,
   wallEnds,
   type Vec,
 } from '../../lib/geometry'
@@ -94,6 +95,11 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   const [path, setPath] = useState<Vec[]>([])
   const [measureStart, setMeasureStart] = useState<Vec | null>(null)
   const [hoverWall, setHoverWall] = useState<{ id: ID; offset: number } | null>(null)
+  const [editing, setEditing] = useState<
+    | { kind: 'text'; screen: Vec; value: string; apply: (v: string) => void; label: string }
+    | { kind: 'number'; screen: Vec; value: number; apply: (v: number) => void; label: string }
+    | null
+  >(null)
   const shiftRef = useRef(false)
   const spaceRef = useRef(false)
 
@@ -184,6 +190,16 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   )
 
   const px = useCallback((n: number) => n / view.scale, [view.scale])
+
+  /** Where the pointer is on screen, for the little inline editors. */
+  const screenPointer = (): Vec => {
+    const p = stageRef.current?.getPointerPosition()
+    return p ? { x: p.x, y: p.y } : { x: size.w / 2, y: size.h / 2 }
+  }
+
+  const editNumber = (label: string, value: number, apply: (v: number) => void) => {
+    setEditing({ kind: 'number', screen: screenPointer(), value, apply, label })
+  }
 
   /** grid + corner + alignment snapping, plus ortho when Shift is held */
   const snapTo = useCallback(
@@ -691,6 +707,59 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     setDrag({ kind: 'room-resize', id, sx, sy, base: polygonBounds(roomPoints(floor, room)) })
   }
 
+  /** Clicking a dimension figure types an exact size straight onto the plan. */
+  const editSelectionSize = (axis: 'w' | 'd') => (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true
+    const st = store.getState()
+    const sel = st.selection
+    if (!sel) return
+    if (sel.kind === 'item' || sel.kind === 'column') {
+      const list = sel.kind === 'item' ? floor.items : floor.columns
+      const target = list.find((x) => x.id === sel.id)
+      if (!target) return
+      editNumber(axis === 'w' ? 'Width' : 'Depth', axis === 'w' ? target.w : target.d, (v) => {
+        const patch = axis === 'w' ? { w: v } : { d: v }
+        if (sel.kind === 'item') st.updateItem(sel.id, patch)
+        else st.updateColumn(sel.id, patch)
+      })
+    }
+    if (sel.kind === 'room') {
+      const room = floor.rooms.find((r) => r.id === sel.id)
+      if (!room) return
+      const b = polygonBounds(roomPoints(floor, room))
+      editNumber(axis === 'w' ? 'Room width' : 'Room depth', axis === 'w' ? b.maxX - b.minX : b.maxY - b.minY, (v) =>
+        st.setRoomBounds(sel.id, {
+          minX: b.minX,
+          minY: b.minY,
+          maxX: axis === 'w' ? b.minX + v : b.maxX,
+          maxY: axis === 'd' ? b.minY + v : b.maxY,
+        }),
+      )
+    }
+  }
+
+  const editWallLength = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true
+    const wall = floor.walls.find((w) => w.id === id)
+    if (!wall) return
+    editNumber('Wall length', wallLength(floor, wall), (v) => store.getState().setWallLength(id, v))
+  }
+
+  const renameRoom = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select') return
+    e.cancelBubble = true
+    const room = floor.rooms.find((r) => r.id === id)
+    if (!room) return
+    store.getState().select({ kind: 'room', id })
+    setEditing({
+      kind: 'text',
+      screen: screenPointer(),
+      value: room.name,
+      label: 'Room name',
+      apply: (name) => store.getState().updateRoom(id, { name }),
+    })
+  }
+
   const startSiteDrag = (e: KonvaEventObject<MouseEvent>) => {
     if (tool !== 'select' || spaceRef.current) return
     e.cancelBubble = true
@@ -828,6 +897,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               showDims={showDims}
               selected={selection?.kind === 'room' && selection.id === room.id}
               onDown={startEntity({ kind: 'room', id: room.id })}
+              onDblClick={renameRoom(room.id)}
             />
           ))}
 
@@ -842,6 +912,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               hovered={hoverWall?.id === wall.id}
               onDown={startEntity({ kind: 'wall', id: wall.id })}
               onDblClick={splitWallAt(wall.id)}
+              onEditLength={editWallLength(wall.id)}
             />
           ))}
 
@@ -901,6 +972,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               onItemResize={startItemResize}
               onRoomResize={startRoomResize}
               onColumnResize={startColumnResize}
+              onEditSize={editSelectionSize}
             />
           ) : null}
 
@@ -985,6 +1057,34 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
             : null}
         </Layer>
       </Stage>
+
+      {editing ? (
+        <div
+          className="absolute z-30 flex items-center gap-1.5 rounded-lg border border-accent bg-ink-900/95 px-2 py-1.5 shadow-xl"
+          style={{ left: Math.min(Math.max(editing.screen.x - 70, 8), size.w - 190), top: Math.max(8, editing.screen.y - 46) }}
+        >
+          <span className="text-[10px] tracking-wide text-mist-400 uppercase">{editing.label}</span>
+          <input
+            autoFocus
+            className="w-24 rounded border border-ink-600 bg-ink-850 px-1.5 py-0.5 text-mist-200 outline-none"
+            defaultValue={editing.kind === 'number' ? String(Number(editing.value.toFixed(3))) : editing.value}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setEditing(null)
+              if (e.key !== 'Enter') return
+              const raw = (e.target as HTMLInputElement).value
+              if (editing.kind === 'number') {
+                const n = Number(raw.replace(',', '.'))
+                if (Number.isFinite(n) && n > 0) editing.apply(n)
+              } else if (raw.trim()) {
+                editing.apply(raw.trim())
+              }
+              setEditing(null)
+            }}
+            onBlur={() => setEditing(null)}
+          />
+          {editing.kind === 'number' ? <span className="text-[11px] text-mist-400">m</span> : null}
+        </div>
+      ) : null}
     </div>
   )
 }

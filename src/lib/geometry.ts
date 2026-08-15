@@ -198,6 +198,101 @@ export function spliceLoopEdge(loop: ID[], a: ID, b: ID, ids: ID[]): ID[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* finding the spaces a set of walls encloses                          */
+/* ------------------------------------------------------------------ */
+
+/** Signed area — negative and positive tell the two winding directions apart. */
+export function signedArea(pts: Vec[]): number {
+  let s = 0
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i]
+    const b = pts[(i + 1) % pts.length]
+    s += a.x * b.y - b.x * a.y
+  }
+  return s / 2
+}
+
+/**
+ * Walks the wall graph and returns every enclosed space, as a loop of corner
+ * ids. This is what turns "I drew some walls" into "these are rooms": at each
+ * corner the walk always takes the next edge clockwise, which traces out each
+ * face of the graph exactly once. The outline around the outside of a group of
+ * walls comes out wound the other way, so it drops out on its own.
+ */
+export function enclosedLoops(floor: Floor): ID[][] {
+  const pts = pointMap(floor)
+  const neighbours = new Map<ID, ID[]>()
+  for (const w of floor.walls) {
+    if (w.a === w.b) continue
+    if (!neighbours.has(w.a)) neighbours.set(w.a, [])
+    if (!neighbours.has(w.b)) neighbours.set(w.b, [])
+    neighbours.get(w.a)!.push(w.b)
+    neighbours.get(w.b)!.push(w.a)
+  }
+  // sorted anticlockwise around each corner
+  for (const [id, list] of neighbours) {
+    const here = pts.get(id)
+    if (!here) continue
+    list.sort((p, q) => {
+      const a = pts.get(p)!
+      const b = pts.get(q)!
+      return Math.atan2(a.y - here.y, a.x - here.x) - Math.atan2(b.y - here.y, b.x - here.x)
+    })
+  }
+
+  const visited = new Set<string>()
+  const loops: ID[][] = []
+  for (const w of floor.walls) {
+    for (const [from, to] of [
+      [w.a, w.b],
+      [w.b, w.a],
+    ] as const) {
+      if (visited.has(`${from}|${to}`)) continue
+      const loop: ID[] = []
+      let u = from
+      let v = to
+      for (let guard = 0; guard < 4096; guard++) {
+        visited.add(`${u}|${v}`)
+        loop.push(u)
+        const list = neighbours.get(v)
+        if (!list?.length) break
+        const i = list.indexOf(u)
+        if (i < 0) break
+        const next = list[(i - 1 + list.length) % list.length]
+        u = v
+        v = next
+        if (u === from && v === to) break
+      }
+      if (loop.length >= 3) loops.push(loop)
+    }
+  }
+
+  return loops.filter((loop) => {
+    const poly = loop.map((id) => pts.get(id)).filter((p): p is Pt => !!p)
+    if (poly.length < 3) return false
+    // enclosed faces wind one way, the outline around a group winds the other
+    return signedArea(poly) > 0.05
+  })
+}
+
+/** Loops that no room covers yet. */
+export function newEnclosedLoops(floor: Floor, minArea = 0.6): ID[][] {
+  const known = new Set(floor.rooms.map((r) => [...r.loop].sort().join('|')))
+  const pts = pointMap(floor)
+  return enclosedLoops(floor).filter((loop) => {
+    if (known.has([...loop].sort().join('|'))) return false
+    const poly = loop.map((id) => pts.get(id)).filter((p): p is Pt => !!p)
+    if (polygonArea(poly) < minArea) return false
+    // ignore a loop that just re-traces a room we already have
+    const centre = polygonCentroid(poly)
+    return !floor.rooms.some((r) => {
+      const rp = roomPoints(floor, r, pts)
+      return rp.length >= 3 && pointInPolygon(centre, rp) && Math.abs(polygonArea(rp) - polygonArea(poly)) < 0.05
+    })
+  })
+}
+
+/* ------------------------------------------------------------------ */
 /* wall geometry used by both the 2D plan and the 3D build             */
 /* ------------------------------------------------------------------ */
 
