@@ -1,4 +1,4 @@
-import type { Column, Floor, ID, Opening, Pt, Room, Wall } from '../types'
+import type { Column, Floor, ID, Item, Opening, Pt, Room, Wall } from '../types'
 
 export interface Vec {
   x: number
@@ -458,6 +458,85 @@ export function snapToWallFace(floor: Floor, item: Placed, maxDist = 0.35): Plac
   }
 
   return best?.placed ?? null
+}
+
+/* ------------------------------------------------------------------ */
+/* stairs                                                              */
+/* ------------------------------------------------------------------ */
+
+export const STAIR_KIND = 'stairs'
+
+/** The four corners of a rotated footprint, in plan coordinates. */
+export function footprintCorners(it: { x: number; y: number; w: number; d: number; rot: number }, grow = 0): Vec[] {
+  const cos = Math.cos(it.rot)
+  const sin = Math.sin(it.rot)
+  const hw = it.w / 2 + grow
+  const hd = it.d / 2 + grow
+  return [
+    [-hw, -hd],
+    [hw, -hd],
+    [hw, hd],
+    [-hw, hd],
+  ].map(([lx, ly]) => ({ x: it.x + lx * cos - ly * sin, y: it.y + lx * sin + ly * cos }))
+}
+
+export function stairsOf(floor: Floor): Item[] {
+  return floor.items.filter((i) => i.kind === STAIR_KIND)
+}
+
+/** Openings a flight of stairs needs in the slab of the floor above. */
+export function stairWells(floor: Floor): Vec[][] {
+  return stairsOf(floor).map((s) => footprintCorners(s, 0.06))
+}
+
+/** Number of steps, and the riser / going that follow from the size. */
+export function stairSteps(item: { d: number; h: number }, maxRiser = 0.19) {
+  const count = Math.max(2, Math.ceil(item.h / maxRiser))
+  return { count, riser: item.h / count, going: item.d / count }
+}
+
+/** Height above the floor slab when standing on a flight, or null when off it. */
+export function stairRampHeight(floor: Floor, p: Vec): number | null {
+  let best: number | null = null
+  for (const s of stairsOf(floor)) {
+    const cos = Math.cos(s.rot)
+    const sin = Math.sin(s.rot)
+    const dx = p.x - s.x
+    const dy = p.y - s.y
+    const lx = dx * cos + dy * sin
+    const ly = -dx * sin + dy * cos
+    if (Math.abs(lx) > s.w / 2 + 0.1 || Math.abs(ly) > s.d / 2) continue
+    const progress = clamp((ly + s.d / 2) / s.d, 0, 1)
+    const h = s.z + progress * s.h
+    if (best === null || h > best) best = h
+  }
+  return best
+}
+
+/** Slab (or step) the walker is standing on, allowing a normal step up. */
+export function groundHeightAt(floors: Floor[], p: Vec, currentY: number, stepUp = 0.42): number {
+  let best = -Infinity
+  for (const f of floors) {
+    const ramp = stairRampHeight(f, p)
+    if (ramp !== null) {
+      const h = f.elevation + ramp
+      if (h <= currentY + stepUp && h > best) best = h
+    }
+    if (f.elevation <= currentY + stepUp && f.elevation > best) {
+      const pts = pointMap(f)
+      if (f.rooms.some((r) => pointInPolygon(p, roomPoints(f, r, pts)))) best = f.elevation
+    }
+  }
+  return best === -Infinity ? 0 : best
+}
+
+/** Every solid of a floor, lifted to its real height above the ground. */
+export function absoluteSolids(floor: Floor, openDoors: Set<ID>): WallSolid[] {
+  return blockingSolids(floor, -Infinity, Infinity, openDoors).map((s) => ({
+    ...s,
+    bottom: s.bottom + floor.elevation,
+    top: s.top + floor.elevation,
+  }))
 }
 
 /* ------------------------------------------------------------------ */

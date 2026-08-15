@@ -33,9 +33,13 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
 - **Tape measure** — measure any two points on the plan.
-- **Sample flat** — ships with a small flat: terrace with a parapet and two round columns, a half wall
-  screening the shower, a beam across the living room and a service duct (Settings → Reset to sample flat).
+- **Sample flat** — ships with a two-storey demo: ground floor with a terrace, a half wall screening the
+  shower, a beam across the living room and a service duct, plus a staircase up to a 58 m² roof terrace with a
+  barbecue, a pergola over the dining table and sun loungers (Settings → Reset to sample flat).
 - **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
+- **Stairs** — a straight flight sized by width, run and rise. The step count, riser and going are worked out
+  for you, the rise snaps to the floor above, the flight cuts its own well in the slab above it, and in walk
+  mode you climb it to the next level.
 - **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
 - **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls, columns
   and closed doors. Doors start closed: stand next to one and press `E` (or click) to swing or slide it open.

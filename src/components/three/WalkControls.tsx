@@ -5,7 +5,8 @@ import * as THREE from 'three'
 import type { Floor } from '../../types'
 import { useDoors } from '../../store/useDoors'
 import {
-  blockingSolids,
+  absoluteSolids,
+  groundHeightAt,
   nearestDoor,
   polygonArea,
   polygonCentroid,
@@ -20,19 +21,21 @@ const RUN = 5.2
 const RADIUS = 0.26
 const REACH = 1.6
 
-/** First-person controller: mouse look, WASD, doors you have to open. */
-export function WalkControls({ floor }: { floor: Floor }) {
+/** First-person controller: mouse look, WASD, stairs, doors you have to open. */
+export function WalkControls({ floor, floors }: { floor: Floor; floors: Floor[] }) {
   const camera = useThree((s) => s.camera)
   const keys = useRef<Record<string, boolean>>({})
   const forward = useRef(new THREE.Vector3())
   const right = useRef(new THREE.Vector3())
+  const ground = useRef(floor.elevation)
   const openDoors = useDoors((s) => s.open)
 
-  // closed doors are solid; opening one carves the hole back out
+  // every floor at once, so a staircase actually leads somewhere;
+  // closed doors are solid, opening one carves the hole back out
   const solids = useMemo(() => {
     const open = new Set(Object.entries(openDoors).filter(([, v]) => v).map(([id]) => id))
-    return blockingSolids(floor, 0.05, EYE + 0.1, open)
-  }, [floor, openDoors])
+    return floors.flatMap((f) => absoluteSolids(f, open))
+  }, [floors, openDoors])
 
   // drop the camera in the middle of the biggest room the first time we walk
   useEffect(() => {
@@ -43,6 +46,7 @@ export function WalkControls({ floor }: { floor: Floor }) {
       })
       .sort((x, y) => y.a - x.a)
     const start = rooms[0]?.c ?? { x: 0, y: 0 }
+    ground.current = floor.elevation
     camera.position.set(start.x, floor.elevation + EYE, start.y)
     camera.rotation.set(0, 0, 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -88,13 +92,16 @@ export function WalkControls({ floor }: { floor: Floor }) {
     if (k.KeyD || k.ArrowRight) side += 1
     if (k.KeyA || k.ArrowLeft) side -= 1
 
-    const crouching = !!(k.ControlLeft || k.KeyC)
-    const targetY = floor.elevation + (crouching ? CROUCH : EYE)
-    camera.position.y += (targetY - camera.position.y) * Math.min(1, delta * 10)
-
-    // what is within arm's reach right now
     const here = { x: camera.position.x, y: camera.position.z }
-    const near = nearestDoor(floor, here, REACH)
+    ground.current = groundHeightAt(floors, here, ground.current)
+    const crouching = !!(k.ControlLeft || k.KeyC)
+    const targetY = ground.current + (crouching ? CROUCH : EYE)
+    camera.position.y += (targetY - camera.position.y) * Math.min(1, delta * 12)
+
+    // what is within arm's reach on the level we are standing on
+    const level =
+      floors.find((f) => Math.abs(f.elevation - ground.current) < 1.2) ?? floor
+    const near = nearestDoor(level, here, REACH)
     const state = useDoors.getState()
     state.setNear(
       near
@@ -118,7 +125,10 @@ export function WalkControls({ floor }: { floor: Floor }) {
       x: camera.position.x + (forward.current.x * fwd + right.current.x * side) * speed,
       y: camera.position.z + (forward.current.z * fwd + right.current.z * side) * speed,
     }
-    const resolved = resolveCollisions(next, RADIUS, solids)
+    const feet = ground.current + 0.05
+    const head = ground.current + EYE + 0.1
+    const here2 = solids.filter((s) => s.top > feet && s.bottom < head)
+    const resolved = resolveCollisions(next, RADIUS, here2)
     camera.position.x = resolved.x
     camera.position.z = resolved.y
   })

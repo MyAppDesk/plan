@@ -1,10 +1,12 @@
 import { Copy, Trash2, RotateCw, FlipHorizontal2, ArrowLeftRight, Split } from 'lucide-react'
 import { ROOM_COLORS, useActiveFloor, useProject } from '../../store/useProject'
 import { CATALOG, catalogItem } from '../../lib/catalog'
+import type { Item } from '../../types'
 import {
   dist,
   formatArea,
   formatLen,
+  stairSteps,
   polygonBounds,
   roomArea,
   roomPerimeter,
@@ -368,6 +370,7 @@ export function PropertiesPanel() {
             Reset to catalogue size ({def.w}×{def.d}×{def.h} m)
           </button>
         </Section>
+        {item.kind === 'stairs' ? <StairInfo item={item} /> : null}
         <Section title="Swap model">
           <div className="grid grid-cols-2 gap-1.5">
             {CATALOG.filter((c) => c.group === def.group).map((c) => (
@@ -532,6 +535,55 @@ export function PropertiesPanel() {
   }
 
   return <FloorProps />
+}
+
+/** Straight flight: the step count follows from the rise you type. */
+function StairInfo({ item }: { item: Item }) {
+  const floor = useActiveFloor()
+  const floors = useProject((s) => s.project.floors)
+  const above = floors
+    .filter((f) => f.elevation > floor.elevation + 0.1)
+    .sort((a, b) => a.elevation - b.elevation)[0]
+  const { count, riser, going } = stairSteps(item)
+  const steep = riser > 0.19 || going < 0.24
+
+  return (
+    <Section title="Flight">
+      <Stat label="Steps" value={String(count)} />
+      <Stat label="Riser" value={`${(riser * 100).toFixed(1)} cm`} />
+      <Stat label="Going (tread)" value={`${(going * 100).toFixed(1)} cm`} />
+      <Stat label="Rise" value={formatLen(item.h)} />
+      <Stat label="Run" value={formatLen(item.d)} />
+      {steep ? (
+        <p className="text-[11px] leading-relaxed text-warn">
+          Steep for a home stair. Comfortable is roughly 17–18 cm of riser and 28 cm of going — make the flight
+          longer (Depth) or the rise smaller.
+        </p>
+      ) : null}
+      {above ? (
+        <button
+          className="btn w-full"
+          onClick={() =>
+            useProject.getState().updateItem(item.id, { h: above.elevation - floor.elevation })
+          }
+        >
+          Fit the rise to {above.name} ({(above.elevation - floor.elevation).toFixed(2)} m)
+        </button>
+      ) : (
+        <p className="text-[11px] text-mist-400">Add a floor above and this flight will land on it.</p>
+      )}
+      <button
+        className="btn w-full"
+        onClick={() => useProject.getState().updateItem(item.id, { d: Math.ceil(item.h / 0.18) * 0.28 })}
+      >
+        Set a comfortable run (28 cm per step)
+      </button>
+      <p className="text-[11px] leading-relaxed text-mist-400">
+        The flight climbs towards its <b>depth</b> direction, and it cuts its own well in the slab above. In walk
+        mode you simply walk up it.
+      </p>
+    </Section>
+  )
 }
 
 function FloorProps() {

@@ -184,61 +184,115 @@ function addColumn(floor: Floor, x: number, y: number, patch: Partial<Column> = 
 
 /** A small demo flat so the app is never an empty page. */
 export function starterProject(): Project {
-  const floor = emptyFloor('Ground floor')
-  addRect(floor, 0, 0, 5.2, 4.2, 'Living / kitchen')
-  addRect(floor, 5.2, 0, 3.6, 4.2, 'Bedroom')
-  addRect(floor, 5.2, 4.2, 3.6, 2.4, 'Bathroom')
-  addRect(floor, 0, 4.2, 5.2, 2.4, 'Hallway')
-  // a terrace hanging off the living room, walled by a low parapet
-  const terrace = addRect(floor, 0, -3, 5.2, 3, 'Terrace')
+  /* ----------------------------- ground floor ----------------------------- */
+  const g = emptyFloor('Ground floor')
+  addRect(g, 0, 0, 5.2, 4.2, 'Living / kitchen')
+  addRect(g, 5.2, 0, 3.6, 4.2, 'Bedroom')
+  addRect(g, 5.2, 4.2, 3.6, 2.4, 'Bathroom')
+  addRect(g, 0, 4.2, 5.2, 2.4, 'Hallway')
+  const terrace = addRect(g, 0, -3, 5.2, 3, 'Terrace')
   terrace.color = '#2f4a3a'
   for (const [from, to] of [
     [{ x: 0, y: -3 }, { x: 5.2, y: -3 }],
     [{ x: 5.2, y: -3 }, { x: 5.2, y: 0 }],
     [{ x: 0, y: 0 }, { x: 0, y: -3 }],
   ] as const)
-    styleWall(floor, from, to, { height: 1.1, thickness: 0.1 })
+    styleWall(g, from, to, { height: 1.1, thickness: 0.1 })
 
-  placeOpening(floor, { x: 5.2, y: 0 }, { x: 5.2, y: 4.2 }, 'door', 3.4, 0.8)
-  placeOpening(floor, { x: 5.2, y: 4.2 }, { x: 5.2, y: 6.6 }, 'door', 1.2, 0.75)
-  placeOpening(floor, { x: 0, y: 4.2 }, { x: 5.2, y: 4.2 }, 'door', 3.9, 0.9)
-  placeOpening(floor, { x: 0, y: 6.6 }, { x: 5.2, y: 6.6 }, 'door', 1.0, 0.9)
-  placeOpening(floor, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2, doorType: 'sliding' })
-  placeOpening(floor, { x: 5.2, y: 0 }, { x: 8.8, y: 0 }, 'window', 1.8, 1.2)
-  placeOpening(floor, { x: 8.8, y: 4.2 }, { x: 8.8, y: 6.6 }, 'window', 1.2, 0.6, { height: 0.8, sill: 1.4 })
+  // doors: each one swings into free floor, not into the fittings
+  placeOpening(g, { x: 5.2, y: 0 }, { x: 5.2, y: 4.2 }, 'door', 3.4, 0.8)
+  placeOpening(g, { x: 5.2, y: 4.2 }, { x: 5.2, y: 6.6 }, 'door', 0.7, 0.75, { flipHinge: true })
+  placeOpening(g, { x: 0, y: 4.2 }, { x: 5.2, y: 4.2 }, 'door', 3.9, 0.9)
+  placeOpening(g, { x: 0, y: 6.6 }, { x: 5.2, y: 6.6 }, 'door', 4.6, 0.9)
+  placeOpening(g, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2, doorType: 'sliding' })
+  placeOpening(g, { x: 5.2, y: 0 }, { x: 8.8, y: 0 }, 'window', 1.8, 1.2)
+  placeOpening(g, { x: 8.8, y: 0 }, { x: 8.8, y: 4.2 }, 'window', 2.0, 1.2)
+  placeOpening(g, { x: 8.8, y: 4.2 }, { x: 8.8, y: 6.6 }, 'window', 1.2, 0.6, { height: 0.8, sill: 1.4 })
 
-  addItem(floor, 'sofa-3', 1.6, 1.0)
-  addItem(floor, 'coffee-table', 1.6, 2.2)
-  addItem(floor, 'tv-unit', 1.6, 3.7, Math.PI)
-  addItem(floor, 'counter', 4.2, 0.5, 0)
-  addItem(floor, 'fridge', 4.8, 1.5, Math.PI / 2)
-  addItem(floor, 'dining-table', 3.9, 3.0)
-  addItem(floor, 'bed-double', 7.0, 1.3)
-  addItem(floor, 'wardrobe', 6.3, 3.8, Math.PI)
-  addItem(floor, 'nightstand', 5.9, 0.5)
-  addItem(floor, 'toilet', 8.3, 5.0, Math.PI / 2)
-  addItem(floor, 'basin', 6.9, 4.6)
-  addItem(floor, 'shower', 5.8, 6.0)
-  addItem(floor, 'dining-table', 2.6, -1.6).w = 1.1
-  addItem(floor, 'chair', 2.6, -0.75)
-  addItem(floor, 'chair', 2.6, -2.45, Math.PI)
-  addItem(floor, 'plant', 4.7, -2.5)
+  // living room along the west wall, kitchen along the north wall
+  addItem(g, 'sofa-3', 0.6, 2.0, Math.PI / 2)
+  addItem(g, 'coffee-table', 1.75, 2.0, Math.PI / 2)
+  addItem(g, 'tv-unit', 2.8, 2.0, -Math.PI / 2)
+  addItem(g, 'dining-table', 3.85, 2.6)
+  addItem(g, 'chair', 3.6, 1.85, Math.PI)
+  addItem(g, 'chair', 4.9, 2.6, -Math.PI / 2)
+  addItem(g, 'counter', 4.15, 0.42)
+  addItem(g, 'stove', 2.9, 0.42)
+  addItem(g, 'sink', 2.25, 0.42)
+  addItem(g, 'fridge', 4.8, 1.55, Math.PI / 2)
 
-  // two round columns holding the slab over the terrace, and a beam over the
-  // opening between the living room and the hallway
-  addColumn(floor, 0.45, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
-  addColumn(floor, 4.75, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
-  addColumn(floor, 8.55, 4.5, { w: 0.35, d: 0.35, name: 'Service duct' })
+  // bedroom
+  addItem(g, 'bed-double', 7.1, 1.35)
+  addItem(g, 'nightstand', 6.05, 0.6)
+  addItem(g, 'nightstand', 8.15, 0.6)
+  addItem(g, 'wardrobe', 7.2, 3.78, Math.PI)
+  addItem(g, 'desk', 8.35, 2.4, -Math.PI / 2)
 
-  // a half wall screening the shower: starts on the floor, stops at 1.20 m
-  const halfWall = addWall(floor, addPoint(floor, 6.4, 6.6), addPoint(floor, 6.4, 5.35), 0.1)
+  // bathroom: shower in the corner behind a half wall, nothing in the door swing
+  addItem(g, 'shower', 5.75, 6.05)
+  addItem(g, 'basin', 7.05, 4.62)
+  addItem(g, 'toilet', 8.3, 5.3, Math.PI / 2)
+  addItem(g, 'washer', 6.9, 6.15)
+  const halfWall = addWall(g, addPoint(g, 6.4, 6.6), addPoint(g, 6.4, 5.35), 0.1)
   halfWall.height = 1.2
 
+  // hallway: the stair up to the roof, clear of both door swings
+  const stair = addItem(g, 'stairs', 2.125, 5.85, -Math.PI / 2)
+  stair.w = 1.0
+  stair.d = 3.75
+  stair.h = 2.9
+  addItem(g, 'dresser', 0.85, 4.6)
+  addItem(g, 'plant', 4.8, 4.7)
+
   // a beam crossing the living room: hangs from the ceiling, you walk under it
-  const beam = addWall(floor, addPoint(floor, 0, 2.3), addPoint(floor, 5.2, 2.3), 0.25)
+  const beam = addWall(g, addPoint(g, 0, 2.3), addPoint(g, 5.2, 2.3), 0.25)
   beam.base = 2.25
 
-  return { version: 2, name: 'My place', floors: [floor] }
+  // structure
+  addColumn(g, 0.45, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
+  addColumn(g, 4.75, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
+  addColumn(g, 8.55, 4.5, { w: 0.35, d: 0.35, name: 'Service duct' })
+
+  /* ------------------------------ roof terrace ---------------------------- */
+  const r = emptyFloor('Roof terrace', 1)
+  r.height = 2.6
+  const roof = addRect(r, 0, 0, 8.8, 6.6, 'Roof terrace')
+  roof.color = '#2f4a3a'
+  for (const [from, to] of [
+    [{ x: 0, y: 0 }, { x: 8.8, y: 0 }],
+    [{ x: 8.8, y: 0 }, { x: 8.8, y: 6.6 }],
+    [{ x: 8.8, y: 6.6 }, { x: 0, y: 6.6 }],
+    [{ x: 0, y: 6.6 }, { x: 0, y: 0 }],
+  ] as const)
+    styleWall(r, from, to, { height: 1.1, thickness: 0.15 })
+
+  // guard rail around the stairwell — you arrive from the east end
+  const rail = addWall(r, addPoint(r, 0.2, 5.3), addPoint(r, 4.05, 5.3), 0.1)
+  rail.height = 0.95
+  const railEnd = addWall(r, addPoint(r, 0.2, 5.3), addPoint(r, 0.2, 6.4), 0.1)
+  railEnd.height = 0.95
+
+  // barbecue corner along the north parapet
+  addItem(r, 'bbq', 7.8, 0.75, Math.PI)
+  addItem(r, 'counter', 6.2, 0.6)
+  addItem(r, 'sink', 4.9, 0.6)
+
+  // shaded dining under a pergola
+  addItem(r, 'pergola', 6.4, 3.6)
+  addItem(r, 'dining-table', 6.4, 3.6)
+  addItem(r, 'chair', 5.4, 3.6, Math.PI / 2)
+  addItem(r, 'chair', 7.4, 3.6, -Math.PI / 2)
+  addItem(r, 'chair', 6.4, 2.85, Math.PI)
+  addItem(r, 'chair', 6.4, 4.35)
+
+  // sun loungers and greenery
+  addItem(r, 'lounger', 1.2, 1.6)
+  addItem(r, 'lounger', 2.3, 1.6)
+  addItem(r, 'plant', 0.55, 3.6)
+  addItem(r, 'plant', 8.25, 6.1)
+  addItem(r, 'plant', 3.4, 0.55)
+
+  return { version: 3, name: 'My place', floors: [g, r] }
 }
 
 /* ------------------------------------------------------------------ */
@@ -520,6 +574,13 @@ export const useProject = create<ProjectState>()(
         createItem: (kind, x, y) =>
           withFloor((floor, state) => {
             const item = addItem(floor, kind, x, y)
+            if (kind === 'stairs') {
+              const above = state.project.floors
+                .filter((f) => f.elevation > floor.elevation + 0.1)
+                .sort((a, b) => a.elevation - b.elevation)[0]
+              item.h = above ? above.elevation - floor.elevation : floor.height + 0.3
+              item.d = Math.max(item.d, Math.ceil(item.h / 0.19) * 0.25)
+            }
             if (state.snapWalls) {
               const placed = snapToWallFace(floor, { x: item.x, y: item.y, w: item.w, d: item.d, rot: item.rot })
               if (placed) {

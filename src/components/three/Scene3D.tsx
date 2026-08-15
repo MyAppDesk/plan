@@ -15,6 +15,9 @@ import {
   wallEnds,
   wallTopOf,
   wallSolids,
+  stairWells,
+  pointInPolygon,
+  type Vec,
 } from '../../lib/geometry'
 import { WalkControls } from './WalkControls'
 
@@ -39,11 +42,13 @@ function RoomSlabs({
   ceiling,
   pick,
   selection,
+  holes,
 }: {
   floor: Floor
   ceiling: boolean
   pick: Pick
   selection: Selection | null
+  holes: Vec[][]
 }) {
   const slabs = useMemo(() => {
     const pts = pointMap(floor)
@@ -52,12 +57,18 @@ function RoomSlabs({
         const poly = roomPoints(floor, room, pts)
         if (poly.length < 3) return null
         const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)))
+        // stairwells coming up from the floor below are cut out of the slab
+        for (const hole of holes) {
+          const centre = hole.reduce((a, h) => ({ x: a.x + h.x / hole.length, y: a.y + h.y / hole.length }), { x: 0, y: 0 })
+          if (!pointInPolygon(centre, poly)) continue
+          shape.holes.push(new THREE.Path(hole.map((h) => new THREE.Vector2(h.x, h.y))))
+        }
         const geo = new THREE.ShapeGeometry(shape)
         geo.rotateX(Math.PI / 2)
         return { room, geo }
       })
       .filter((s): s is { room: (typeof floor.rooms)[number]; geo: THREE.ShapeGeometry } => !!s)
-  }, [floor])
+  }, [floor, holes])
 
   return (
     <group>
@@ -372,16 +383,18 @@ function FloorGroup({
   ceiling,
   pick,
   selection,
+  holes,
 }: {
   floor: Floor
   furniture: boolean
   ceiling: boolean
   pick: Pick
   selection: Selection | null
+  holes: Vec[][]
 }) {
   return (
     <group>
-      <RoomSlabs floor={floor} ceiling={ceiling} pick={pick} selection={selection} />
+      <RoomSlabs floor={floor} ceiling={ceiling} pick={pick} selection={selection} holes={holes} />
       <Walls floor={floor} pick={pick} selection={selection} />
       <Columns floor={floor} pick={pick} selection={selection} />
       {floor.openings.map((o) => (
@@ -408,6 +421,14 @@ export function Scene3D({ active }: { active: boolean }) {
   const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, 6)
   const visible = showAllFloors || view === 'walk' ? floors : [floor]
   const walking = view === 'walk'
+
+  /** A flight of stairs on the floor below needs a hole in this slab. */
+  const wellsBelow = (f: Floor): Vec[][] => {
+    const below = floors
+      .filter((x) => x.elevation < f.elevation - 0.1)
+      .sort((a, b) => b.elevation - a.elevation)[0]
+    return below ? stairWells(below) : []
+  }
 
   /** Clicking a piece of the model selects it — but never while walking. */
   const pickFor =
@@ -466,12 +487,13 @@ export function Scene3D({ active }: { active: boolean }) {
             ceiling={showCeiling}
             pick={pickFor(f)}
             selection={f.id === floor.id ? selection : null}
+            holes={wellsBelow(f)}
           />
         ))}
       </Suspense>
 
       {walking ? (
-        <WalkControls floor={floor} />
+        <WalkControls floor={floor} floors={floors} />
       ) : (
         <OrbitControls
           makeDefault
