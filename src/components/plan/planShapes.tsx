@@ -1,6 +1,6 @@
 import { Arc, Circle, Group, Line, Rect, Shape, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import type { Column, Floor, Item, Measure, Opening, Room, Selection, Wall } from '../../types'
+import type { Column, Floor, Item, Measure, Opening, Room, Selection, Site, Wall } from '../../types'
 import { catalogItem } from '../../lib/catalog'
 import { isStair, stairLayout } from '../../lib/stairs'
 import {
@@ -25,6 +25,8 @@ export const C = {
   wall: '#c9d2e2',
   wallLow: '#8ba0c4',
   wallOverhead: '#c9a86a',
+  fence: '#a4855e',
+  hedge: '#5d8a55',
   column: '#d5dbe6',
   wallSelected: '#4f8cff',
   wallHover: '#8fb4ff',
@@ -144,6 +146,45 @@ export function GridShape({ view, size }: { view: { x: number; y: number; scale:
 }
 
 /* ------------------------------------------------------------------ */
+/* the plot                                                            */
+/* ------------------------------------------------------------------ */
+
+const GROUND_2D: Record<string, string> = {
+  grass: 'rgba(74,107,63,0.18)',
+  gravel: 'rgba(111,106,98,0.18)',
+  sand: 'rgba(179,156,116,0.16)',
+  paving: 'rgba(110,114,124,0.18)',
+  earth: 'rgba(107,86,68,0.18)',
+}
+
+export function SiteShape({ site, scale }: { site: Site; scale: number }) {
+  return (
+    <Group listening={false}>
+      <Rect
+        x={site.x}
+        y={site.y}
+        width={site.w}
+        height={site.d}
+        fill={GROUND_2D[site.ground] ?? GROUND_2D.grass}
+        stroke="#6d8a5e"
+        strokeWidth={2}
+        strokeScaleEnabled={false}
+        dash={[10, 6]}
+      />
+      <Label
+        x={site.x + site.w / 2}
+        y={site.y - 0.3}
+        text={`${site.name} · ${site.w.toFixed(2)} × ${site.d.toFixed(2)} m · ${formatArea(site.w * site.d)}`}
+        scale={scale}
+        color="#8fae7d"
+        size={11}
+        bold
+      />
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
 /* rooms                                                               */
 /* ------------------------------------------------------------------ */
 
@@ -227,6 +268,8 @@ export function WallShape({
   const top = wallTopOf(floor, wall)
   const overhead = base > 1e-6
   const low = !overhead && top < floor.height - 1e-6
+  const style = wall.style ?? 'solid'
+  const open = style !== 'solid'
   const ang = angleOf(e.a, e.b)
   const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
   const deg = (ang * 180) / Math.PI
@@ -240,11 +283,23 @@ export function WallShape({
       <Line
         points={[e.a.x, e.a.y, e.b.x, e.b.y]}
         stroke={
-          selected ? C.wallSelected : hovered ? C.wallHover : overhead ? C.wallOverhead : low ? C.wallLow : C.wall
+          selected
+            ? C.wallSelected
+            : hovered
+              ? C.wallHover
+              : style === 'hedge'
+                ? C.hedge
+                : open
+                  ? C.fence
+                  : overhead
+                    ? C.wallOverhead
+                    : low
+                      ? C.wallLow
+                      : C.wall
         }
-        strokeWidth={wall.thickness}
+        strokeWidth={Math.max(wall.thickness, open ? 0.06 : 0)}
         lineCap="butt"
-        dash={overhead ? [0.1, 0.12] : low ? [0.32, 0.16] : undefined}
+        dash={style === 'fence' ? [0.28, 0.14] : style === 'railing' ? [0.14, 0.1] : overhead ? [0.1, 0.12] : low ? [0.32, 0.16] : undefined}
         hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
         onMouseDown={onDown}
         onDblClick={onDblClick}
@@ -256,11 +311,13 @@ export function WallShape({
           y={mid.y + ny}
           rotation={flip ? deg + 180 : deg}
           text={
-            overhead
-              ? `${formatLen(len)} · ${formatLen(base)}–${formatLen(top)}`
-              : low
-                ? `${formatLen(len)} · h ${formatLen(top)}`
-                : formatLen(len)
+            open
+              ? `${formatLen(len)} · ${style} ${formatLen(top)}`
+              : overhead
+                ? `${formatLen(len)} · ${formatLen(base)}–${formatLen(top)}`
+                : low
+                  ? `${formatLen(len)} · h ${formatLen(top)}`
+                  : formatLen(len)
           }
           scale={scale}
           color={selected ? C.accent : overhead ? C.wallOverhead : low ? C.wallLow : C.dim}

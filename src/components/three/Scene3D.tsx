@@ -25,6 +25,14 @@ const WALL_COLOR = '#dfe4ee'
 const FLOOR_COLOR = '#8c8378'
 const SELECTED = '#4f8cff'
 
+const GROUND_COLORS: Record<string, string> = {
+  grass: '#4a6b3f',
+  gravel: '#6f6a62',
+  sand: '#b39c74',
+  paving: '#6e727c',
+  earth: '#6b5644',
+}
+
 type Pick = (sel: Selection) => ((e: ThreeEvent<PointerEvent>) => void) | undefined
 
 /** Blue outline around whatever is selected. */
@@ -115,16 +123,93 @@ function RoomSlabs({
 /* walls + columns                                                     */
 /* ------------------------------------------------------------------ */
 
+/** An open boundary: posts and rails, balusters, or a clipped hedge. */
+function FenceRun({
+  span,
+  elevation,
+  style,
+  color,
+  onPointerDown,
+}: {
+  span: { cx: number; cy: number; len: number; thickness: number; bottom: number; top: number; angle: number }
+  elevation: number
+  style: 'fence' | 'railing' | 'hedge'
+  color?: string
+  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void
+}) {
+  const h = span.top - span.bottom
+  const y0 = elevation + span.bottom
+  const half = span.len / 2
+
+  if (style === 'hedge') {
+    return (
+      <group position={[span.cx, y0, span.cy]} rotation={[0, -span.angle, 0]} onPointerDown={onPointerDown}>
+        <mesh position={[0, h / 2, 0]} castShadow receiveShadow>
+          <boxGeometry args={[span.len, h, Math.max(span.thickness, 0.4)]} />
+          <meshStandardMaterial color={color ?? '#3f6b3c'} roughness={1} flatShading />
+        </mesh>
+        <mesh position={[0, h + 0.03, 0]}>
+          <boxGeometry args={[span.len * 0.98, 0.06, Math.max(span.thickness, 0.4) * 0.96]} />
+          <meshStandardMaterial color="#4c7d48" roughness={1} />
+        </mesh>
+      </group>
+    )
+  }
+
+  const postEvery = style === 'fence' ? 1.4 : 1.6
+  const posts = Math.max(2, Math.round(span.len / postEvery) + 1)
+  const postSize = style === 'fence' ? 0.09 : 0.06
+  const rails = style === 'fence' ? [0.28, 0.62, 0.94] : [0.96]
+  const balusters = style === 'railing' ? Math.max(2, Math.floor(span.len / 0.13)) : 0
+  const wood = color ?? (style === 'fence' ? '#a4855e' : '#c3cad6')
+
+  return (
+    <group position={[span.cx, y0, span.cy]} rotation={[0, -span.angle, 0]} onPointerDown={onPointerDown}>
+      {Array.from({ length: posts }, (_, i) => (
+        <mesh key={i} position={[-half + (span.len / (posts - 1)) * i, h / 2, 0]} castShadow>
+          <boxGeometry args={[postSize, h, postSize]} />
+          <meshStandardMaterial color={wood} roughness={0.75} metalness={style === 'railing' ? 0.4 : 0.05} />
+        </mesh>
+      ))}
+      {rails.map((f) => (
+        <mesh key={f} position={[0, h * f, 0]} castShadow>
+          <boxGeometry args={[span.len, style === 'fence' ? 0.08 : 0.05, style === 'fence' ? 0.04 : 0.05]} />
+          <meshStandardMaterial color={wood} roughness={0.75} metalness={style === 'railing' ? 0.4 : 0.05} />
+        </mesh>
+      ))}
+      {Array.from({ length: balusters }, (_, i) => (
+        <mesh key={`b${i}`} position={[-half + (span.len / (balusters - 1 || 1)) * i, h / 2, 0]}>
+          <boxGeometry args={[0.02, h, 0.02]} />
+          <meshStandardMaterial color={wood} roughness={0.5} metalness={0.5} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
 function Walls({ floor, pick, selection }: { floor: Floor; pick: Pick; selection: Selection | null }) {
   const solids = useMemo(() => {
     const pts = pointMap(floor)
-    return floor.walls.flatMap((w) => wallSolids(floor, w, pts).map((s) => ({ s, id: w.id, color: w.color })))
+    return floor.walls.flatMap((w) =>
+      wallSolids(floor, w, pts).map((s) => ({ s, id: w.id, color: w.color, style: w.style ?? 'solid' })),
+    )
   }, [floor])
 
   return (
     <group>
-      {solids.map(({ s, id, color }, i) => {
+      {solids.map(({ s, id, color, style }, i) => {
         const selected = selection?.kind === 'wall' && selection.id === id
+        if (style !== 'solid')
+          return (
+            <FenceRun
+              key={`${id}-${i}`}
+              span={s}
+              elevation={floor.elevation}
+              style={style}
+              color={selected ? '#4f8cff' : color}
+              onPointerDown={pick({ kind: 'wall', id })}
+            />
+          )
         return (
           <mesh
             key={`${id}-${i}`}
@@ -432,12 +517,13 @@ export function Scene3D({ active }: { active: boolean }) {
   const selection = useProject((s) => s.selection)
   const select = useProject((s) => s.select)
   const eyeHeight = useProject((s) => s.project.eyeHeight ?? 1.65)
+  const site = useProject((s) => s.project.site)
   const floor = useActiveFloor()
 
   const b = floorBounds(floor)
   const cx = (b.minX + b.maxX) / 2
   const cz = (b.minY + b.maxY) / 2
-  const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, 6)
+  const span = Math.max(b.maxX - b.minX, b.maxY - b.minY, site?.enabled ? Math.max(site.w, site.d) : 0, 6)
   const visible = showAllFloors || view === 'walk' ? floors : [floor]
   const walking = view === 'walk'
 
@@ -499,11 +585,29 @@ export function Scene3D({ active }: { active: boolean }) {
       <ambientLight intensity={0.35} />
 
       {/* ground */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, -0.02, cz]} receiveShadow>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, -0.06, cz]} receiveShadow>
         <planeGeometry args={[span * 12, span * 12]} />
         <meshStandardMaterial color="#171c26" roughness={1} />
       </mesh>
-      <gridHelper args={[span * 12, Math.round(span * 12), '#1e2534', '#161b26']} position={[cx, -0.015, cz]} />
+      <gridHelper args={[span * 12, Math.round(span * 12), '#1e2534', '#161b26']} position={[cx, -0.05, cz]} />
+
+      {site?.enabled ? (
+        <group>
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[site.x + site.w / 2, -0.02, site.y + site.d / 2]}
+            receiveShadow
+          >
+            <planeGeometry args={[site.w, site.d]} />
+            <meshStandardMaterial color={GROUND_COLORS[site.ground] ?? '#4a6b3f'} roughness={1} />
+          </mesh>
+          {/* a lip around the plot so the edge reads in 3D */}
+          <mesh position={[site.x + site.w / 2, -0.06, site.y + site.d / 2]}>
+            <boxGeometry args={[site.w + 0.12, 0.1, site.d + 0.12]} />
+            <meshStandardMaterial color="#3a4150" roughness={1} />
+          </mesh>
+        </group>
+      ) : null}
 
       <Suspense fallback={null}>
         {visible.map((f) => (

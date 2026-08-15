@@ -39,6 +39,10 @@ listed under the project name in the toolbar.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
+- **A plot of land** — optional site the buildings stand on, with its own size, position and ground (grass,
+  gravel, sand, paving, earth). Draw as many separate buildings on it as you like.
+- **Outdoors** — swimming pool, hot tub, cars, trees, hedges, planters, a garden bench, a shed and paving in
+  the catalogue; fences, railings and hedges are wall types, so they take gates like any other wall.
 - **Tape measure** — measure any two points on the plan.
 - **Sample flat** — ships with a two-storey demo: ground floor with a terrace, a half wall screening the
   shower, a beam across the living room and a service duct, plus a staircase up to a 58 m² roof terrace with a

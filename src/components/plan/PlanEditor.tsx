@@ -36,6 +36,7 @@ import {
   RectDraft,
   RoomShape,
   SelectionGrips,
+  SiteShape,
   WallShape,
 } from './planShapes'
 
@@ -103,6 +104,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   const showDims = useProject((s) => s.showDims)
   const showFurniture = useProject((s) => s.showFurniture)
   const catalogKind = useProject((s) => s.catalogKind)
+  const site = useProject((s) => s.project.site)
   const store = useProject
 
   /* ------------------------------------------------------------------ */
@@ -121,7 +123,15 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   const fit = useCallback(() => {
     const el = wrapRef.current
     if (!el) return
-    const b = floorBounds(floor)
+    const fb = floorBounds(floor)
+    const b = site?.enabled
+      ? {
+          minX: Math.min(fb.minX, site.x),
+          maxX: Math.max(fb.maxX, site.x + site.w),
+          minY: Math.min(fb.minY, site.y),
+          maxY: Math.max(fb.maxY, site.y + site.d),
+        }
+      : fb
     const pad = 1.2
     const bw = b.maxX - b.minX + pad * 2
     const bh = b.maxY - b.minY + pad * 2
@@ -131,7 +141,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       x: el.clientWidth / 2 - ((b.minX + b.maxX) / 2) * scale,
       y: el.clientHeight / 2 - ((b.minY + b.maxY) / 2) * scale,
     })
-  }, [floor])
+  }, [floor, site])
 
   useEffect(() => on('fit', fit), [fit])
 
@@ -721,6 +731,8 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         <Layer listening={false}>{showGrid ? <GridShape view={{ ...view, w: size.w, h: size.h }} size={gridSize < 0.05 ? 0.05 : gridSize} /> : null}</Layer>
 
         <Layer>
+          {site?.enabled ? <SiteShape site={site} scale={view.scale} /> : null}
+
           {floor.rooms.map((room) => (
             <RoomShape
               key={room.id}

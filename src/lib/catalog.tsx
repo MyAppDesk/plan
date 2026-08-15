@@ -85,6 +85,7 @@ function Cyl({
   rot,
   seg = 16,
   metal = 0.05,
+  rough = 0.6,
 }: {
   p: [number, number, number]
   r: number
@@ -93,11 +94,12 @@ function Cyl({
   rot?: [number, number, number]
   seg?: number
   metal?: number
+  rough?: number
 }) {
   return (
     <mesh position={p} rotation={rot} castShadow receiveShadow>
       <cylinderGeometry args={[r, r, h, seg]} />
-      <meshStandardMaterial color={color} roughness={0.6} metalness={metal} />
+      <meshStandardMaterial color={color} roughness={rough} metalness={metal} />
     </mesh>
   )
 }
@@ -714,6 +716,277 @@ export const CATALOG: CatalogItem[] = [
           <icosahedronGeometry args={[Math.min(w, d) * 0.5, 1]} />
           <meshStandardMaterial color={color} roughness={0.9} flatShading />
         </mesh>
+      </group>
+    ),
+  },
+  /* ------------------------------- outdoor ------------------------------- */
+  {
+    kind: 'bbq',
+    name: 'Barbecue',
+    group: 'Outdoor',
+    w: 1.2,
+    d: 0.65,
+    h: 1.1,
+    color: '#3f4550',
+    glyph: [
+      ...outline(0.05),
+      { type: 'rect', x: 0.1, y: 0.15, w: 0.55, h: 0.7 },
+      ...Array.from({ length: 4 }, (_, i) => ({ type: 'line' as const, points: [0.12 + i * 0.14, 0.18, 0.12 + i * 0.14, 0.82] })),
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h * 0.35, 0]} s={[w, h * 0.7, d]} color={color} metal={0.4} rough={0.45} />
+        <B p={[0, h * 0.72, 0]} s={[w, 0.05, d]} color="#20242c" rough={0.35} />
+        {/* grill bars */}
+        {Array.from({ length: 7 }, (_, i) => (
+          <B key={i} p={[-w * 0.3 + i * (w * 0.1), h * 0.75, 0]} s={[0.02, 0.02, d * 0.7]} color="#8d95a5" metal={0.9} rough={0.3} />
+        ))}
+        {/* hood, tipped back */}
+        <B p={[0, h * 0.95, -d * 0.32]} s={[w, h * 0.42, 0.06]} color="#4a515e" metal={0.5} rough={0.4} />
+        <Cyl p={[0, h * 0.4, d / 2 + 0.06]} r={0.05} h={w * 0.7} color="#9aa3b2" rot={[0, 0, Math.PI / 2]} metal={0.8} />
+      </group>
+    ),
+  },
+  {
+    kind: 'lounger',
+    name: 'Sun lounger',
+    group: 'Outdoor',
+    w: 0.7,
+    d: 1.95,
+    h: 0.6,
+    color: '#7f8b9c',
+    glyph: [
+      { type: 'rect', x: 0.08, y: 0.02, w: 0.84, h: 0.34, radius: 0.3 },
+      { type: 'rect', x: 0.08, y: 0.38, w: 0.84, h: 0.6, radius: 0.1 },
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h * 0.42, d * 0.08]} s={[w, 0.1, d * 0.82]} color={color} />
+        <B p={[0, h * 0.62, -d * 0.36]} s={[w, 0.08, d * 0.34]} color={color} rot={[-0.6, 0, 0]} />
+        {[-1, 1].map((sx) =>
+          [-1, 1].map((sz) => (
+            <B key={`${sx}${sz}`} p={[(sx * w) / 2.6, h * 0.19, (sz * d) / 2.8]} s={[0.05, h * 0.38, 0.05]} color="#cfd4de" metal={0.6} />
+          )),
+        )}
+      </group>
+    ),
+  },
+  {
+    kind: 'pergola',
+    name: 'Pergola',
+    group: 'Outdoor',
+    w: 3.2,
+    d: 3.2,
+    h: 2.4,
+    color: '#8b6a45',
+    glyph: [
+      ...outline(0.02),
+      ...Array.from({ length: 7 }, (_, i) => ({ type: 'line' as const, points: [0.02, 0.1 + i * 0.13, 0.98, 0.1 + i * 0.13] })),
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        {[
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ].map(([sx, sz], i) => (
+          <B key={i} p={[(sx * (w / 2 - 0.06)) as number, h / 2, (sz * (d / 2 - 0.06)) as number]} s={[0.12, h, 0.12]} color={color} />
+        ))}
+        <B p={[0, h - 0.06, -d / 2 + 0.06]} s={[w, 0.12, 0.12]} color={color} />
+        <B p={[0, h - 0.06, d / 2 - 0.06]} s={[w, 0.12, 0.12]} color={color} />
+        {Array.from({ length: 9 }, (_, i) => (
+          <B key={i} p={[0, h + 0.02, -d / 2 + (d / 8) * i]} s={[w, 0.08, 0.06]} color="#9a7f5f" />
+        ))}
+      </group>
+    ),
+  },
+  /* -------------------------------- site --------------------------------- */
+  {
+    kind: 'pool',
+    name: 'Swimming pool',
+    group: 'Site',
+    w: 4.0,
+    d: 8.0,
+    h: 1.4,
+    color: '#2f7fa8',
+    glyph: [...outline(0.02), ...outline(0.09)],
+    build: ({ w, d, h, color }) => (
+      <group>
+        {/* coping around the edge */}
+        {[
+          [0, -d / 2 + 0.15, w + 0.6, 0.3],
+          [0, d / 2 - 0.15, w + 0.6, 0.3],
+        ].map(([x, z, sw, sd], i) => (
+          <B key={i} p={[x, 0.03, z + (z < 0 ? -0.15 : 0.15)]} s={[sw, 0.06, sd]} color="#d9dde4" />
+        ))}
+        {[-1, 1].map((sx) => (
+          <B key={sx} p={[(sx * (w + 0.3)) / 2, 0.03, 0]} s={[0.3, 0.06, d]} color="#d9dde4" />
+        ))}
+        {/* basin, sunk into the ground */}
+        <B p={[0, -h / 2, 0]} s={[w, h, d]} color="#7fb6cf" rough={0.3} />
+        <B p={[0, -0.12, 0]} s={[w - 0.06, 0.2, d - 0.06]} color={color} rough={0.08} metal={0.15} opacity={0.85} />
+        {/* ladder */}
+        {[-1, 1].map((sx) => (
+          <Cyl key={sx} p={[sx * 0.18, 0.18, d / 2 - 0.45]} r={0.025} h={0.6} color="#cfd4de" metal={0.8} rough={0.2} />
+        ))}
+      </group>
+    ),
+  },
+  {
+    kind: 'hot-tub',
+    name: 'Hot tub',
+    group: 'Site',
+    w: 2.0,
+    d: 2.0,
+    h: 0.9,
+    color: '#2f7fa8',
+    glyph: [{ type: 'circle', x: 0.5, y: 0.5, r: 0.48 }, { type: 'circle', x: 0.5, y: 0.5, r: 0.4 }],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <Cyl p={[0, h / 2, 0]} r={Math.min(w, d) / 2} h={h} color="#8a7f72" seg={28} />
+        <Cyl p={[0, h - 0.08, 0]} r={Math.min(w, d) / 2 - 0.18} h={0.14} color={color} seg={28} />
+      </group>
+    ),
+  },
+  {
+    kind: 'car',
+    name: 'Car',
+    group: 'Site',
+    w: 1.85,
+    d: 4.5,
+    h: 1.5,
+    color: '#4a5568',
+    glyph: [
+      { type: 'rect', x: 0.06, y: 0.02, w: 0.88, h: 0.96, radius: 0.2 },
+      { type: 'rect', x: 0.16, y: 0.26, w: 0.68, h: 0.34, radius: 0.15 },
+    ],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h * 0.33, 0]} s={[w, h * 0.42, d]} color={color} rough={0.35} metal={0.3} />
+        <B p={[0, h * 0.68, -d * 0.05]} s={[w * 0.86, h * 0.34, d * 0.46]} color="#20242c" rough={0.15} metal={0.2} />
+        {[
+          [-1, -1],
+          [1, -1],
+          [-1, 1],
+          [1, 1],
+        ].map(([sx, sz], i) => (
+          <Cyl
+            key={i}
+            p={[(sx * w) / 2.15, h * 0.16, (sz * d) / 3.1]}
+            r={h * 0.16}
+            h={0.2}
+            color="#15181f"
+            rot={[0, 0, Math.PI / 2]}
+          />
+        ))}
+      </group>
+    ),
+  },
+  {
+    kind: 'tree',
+    name: 'Tree',
+    group: 'Site',
+    w: 3.0,
+    d: 3.0,
+    h: 4.5,
+    color: '#4f7d4a',
+    glyph: [{ type: 'circle', x: 0.5, y: 0.5, r: 0.46 }, { type: 'circle', x: 0.5, y: 0.5, r: 0.1 }],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <Cyl p={[0, h * 0.28, 0]} r={Math.min(w, d) * 0.06} h={h * 0.56} color="#6b4f36" seg={10} />
+        <mesh position={[0, h * 0.72, 0]} castShadow>
+          <icosahedronGeometry args={[Math.min(w, d) * 0.45, 1]} />
+          <meshStandardMaterial color={color} roughness={0.95} flatShading />
+        </mesh>
+        <mesh position={[Math.min(w, d) * 0.14, h * 0.55, 0]} castShadow>
+          <icosahedronGeometry args={[Math.min(w, d) * 0.28, 1]} />
+          <meshStandardMaterial color="#456f42" roughness={0.95} flatShading />
+        </mesh>
+      </group>
+    ),
+  },
+  {
+    kind: 'hedge-block',
+    name: 'Hedge block',
+    group: 'Site',
+    w: 2.0,
+    d: 0.7,
+    h: 1.2,
+    color: '#3f6b3c',
+    glyph: [...outline(0.04)],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} rough={1} />
+        <B p={[0, h + 0.02, 0]} s={[w * 0.96, 0.06, d * 0.96]} color="#4c7d48" rough={1} />
+      </group>
+    ),
+  },
+  {
+    kind: 'planter',
+    name: 'Planter',
+    group: 'Site',
+    w: 1.2,
+    d: 0.45,
+    h: 0.5,
+    color: '#8a7f72',
+    glyph: [...outline(0.06), ...outline(0.16)],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} />
+        <B p={[0, h + 0.08, 0]} s={[w * 0.86, 0.2, d * 0.7]} color="#4c7d48" rough={1} />
+      </group>
+    ),
+  },
+  {
+    kind: 'bench',
+    name: 'Garden bench',
+    group: 'Site',
+    w: 1.6,
+    d: 0.6,
+    h: 0.85,
+    color: '#8b6a45',
+    glyph: [...outline(0.08), { type: 'line', points: [0.08, 0.3, 0.92, 0.3] }],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h * 0.5, 0]} s={[w, 0.06, d]} color={color} />
+        <B p={[0, h * 0.78, -d / 2 + 0.05]} s={[w, h * 0.45, 0.06]} color={color} />
+        {[-1, 1].map((sx) => (
+          <B key={sx} p={[(sx * (w - 0.16)) / 2, h * 0.25, 0]} s={[0.08, h * 0.5, d * 0.9]} color="#3f4550" />
+        ))}
+      </group>
+    ),
+  },
+  {
+    kind: 'shed',
+    name: 'Garden shed',
+    group: 'Site',
+    w: 2.4,
+    d: 1.8,
+    h: 2.2,
+    color: '#8a7f72',
+    glyph: [...outline(0.03), { type: 'line', points: [0.5, 0.03, 0.5, 0.97] }],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h * 0.42, 0]} s={[w, h * 0.84, d]} color={color} />
+        <B p={[0, h * 0.9, -d * 0.24]} s={[w + 0.12, 0.08, d * 0.62]} color="#5c6472" rot={[0.32, 0, 0]} />
+        <B p={[0, h * 0.9, d * 0.24]} s={[w + 0.12, 0.08, d * 0.62]} color="#5c6472" rot={[-0.32, 0, 0]} />
+        <B p={[0, h * 0.36, d / 2 + 0.01]} s={[w * 0.4, h * 0.66, 0.03]} color="#6b7383" />
+      </group>
+    ),
+  },
+  {
+    kind: 'paving',
+    name: 'Paving / driveway',
+    group: 'Site',
+    w: 3.0,
+    d: 6.0,
+    h: 0.04,
+    color: '#7d838f',
+    glyph: [...outline(0.02), { type: 'line', points: [0.5, 0.02, 0.5, 0.98] }],
+    build: ({ w, d, h, color }) => (
+      <group>
+        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} rough={1} />
       </group>
     ),
   },

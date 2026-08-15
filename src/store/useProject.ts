@@ -4,6 +4,7 @@ import { produce } from 'immer'
 import type {
   Column,
   Floor,
+  Site,
   ID,
   Item,
   Opening,
@@ -29,6 +30,7 @@ import { readProjectData, newProjectId } from './storage'
 import {
   angleOf,
   clamp,
+  floorBounds,
   closestOnSegment,
   dist,
   findWallBetween,
@@ -118,6 +120,8 @@ export interface ProjectState extends UiState {
   endDrag: () => void
   loadProject: (p: Project, id?: string) => void
   setEyeHeight: (v: number) => void
+  updateSite: (patch: Partial<Site>) => void
+  fitSiteToPlan: () => void
 }
 
 export function bootProject(id: string | null): { id: string; project: Project } {
@@ -127,11 +131,22 @@ export function bootProject(id: string | null): { id: string; project: Project }
 }
 
 /** Fills in anything an older / hand-edited file may be missing. */
+export const DEFAULT_SITE: Site = {
+  enabled: true,
+  name: 'Plot',
+  x: -6,
+  y: -6,
+  w: 24,
+  d: 22,
+  ground: 'grass',
+}
+
 export function normalizeProject(p: Project): Project {
   return {
     version: 3,
     name: p.name ?? 'Untitled',
     eyeHeight: p.eyeHeight ?? 1.65,
+    site: p.site ? { ...DEFAULT_SITE, ...p.site } : undefined,
     floors: (p.floors ?? []).map((f, i) => ({
       ...emptyFloor(f.name ?? `Floor ${i + 1}`, i),
       ...f,
@@ -720,6 +735,37 @@ export const useProject = create<ProjectState>()(
         },
 
         setEyeHeight: (v) => set(produce((st: ProjectState) => void (st.project.eyeHeight = clamp(v, 0.6, 2.4)))),
+
+        updateSite: (patch) =>
+          set(
+            produce((st: ProjectState) => {
+              st.project.site = { ...(st.project.site ?? DEFAULT_SITE), ...patch }
+            }),
+          ),
+
+        /** Wraps the plot around everything drawn so far, with a garden margin. */
+        fitSiteToPlan: () =>
+          set(
+            produce((st: ProjectState) => {
+              const xs: number[] = []
+              const ys: number[] = []
+              for (const f of st.project.floors) {
+                const b = floorBounds(f)
+                xs.push(b.minX, b.maxX)
+                ys.push(b.minY, b.maxY)
+              }
+              if (!xs.length) return
+              const margin = 4
+              st.project.site = {
+                ...(st.project.site ?? DEFAULT_SITE),
+                enabled: true,
+                x: Math.min(...xs) - margin,
+                y: Math.min(...ys) - margin,
+                w: Math.max(...xs) - Math.min(...xs) + margin * 2,
+                d: Math.max(...ys) - Math.min(...ys) + margin * 2,
+              }
+            }),
+          ),
       }
     },
     {

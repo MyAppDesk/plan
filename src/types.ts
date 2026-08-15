@@ -8,6 +8,8 @@ export interface Pt {
   y: number
 }
 
+export type WallStyle = 'solid' | 'fence' | 'railing' | 'hedge'
+
 export interface Wall {
   id: ID
   a: ID
@@ -19,6 +21,8 @@ export interface Wall {
   base: number
   /** metres of wall above `base`; null → carry on up to the ceiling */
   height: number | null
+  /** solid masonry, or an open boundary like a fence, a railing or a hedge */
+  style?: WallStyle
   color?: string
 }
 
@@ -119,11 +123,25 @@ export interface Floor {
   measures: Measure[]
 }
 
+export type GroundKind = 'grass' | 'gravel' | 'sand' | 'paving' | 'earth'
+
+/** An optional plot of land the buildings sit on. */
+export interface Site {
+  enabled: boolean
+  name: string
+  x: number
+  y: number
+  w: number
+  d: number
+  ground: GroundKind
+}
+
 export interface Project {
   version: number
   name: string
   /** camera height used in walk mode, derived from the person's height */
   eyeHeight?: number
+  site?: Site
   floors: Floor[]
 }
 

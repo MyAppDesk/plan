@@ -182,6 +182,14 @@ export function Onboarding() {
                     checked={o.roofTerrace}
                     onChange={() => patch({ roofTerrace: !o.roofTerrace })}
                   />
+                  <Toggle
+                    label="Plot of land (garden, fence, driveway)"
+                    checked={o.plot}
+                    onChange={() => patch({ plot: !o.plot, pool: o.plot ? false : o.pool })}
+                  />
+                  {o.plot ? (
+                    <Toggle label="Swimming pool" checked={o.pool} onChange={() => patch({ pool: !o.pool })} />
+                  ) : null}
                 </div>
               ) : null}
             </div>

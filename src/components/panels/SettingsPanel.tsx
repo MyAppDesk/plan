@@ -1,7 +1,7 @@
 import { Layers, Trash2 } from 'lucide-react'
 import { useProject } from '../../store/useProject'
 import { useLibrary } from '../../store/useLibrary'
-import { NumberField, SegButtons, Section, TextField, Toggle } from '../ui/fields'
+import { NumberField, SegButtons, Section, Select, TextField, Toggle } from '../ui/fields'
 
 const GRIDS = [
   { value: '0.05', label: '5 cm' },
@@ -16,6 +16,7 @@ export function SettingsPanel() {
   const entries = library.entries
   const currentId = library.currentId
   const floors = s.project.floors
+  const site = s.project.site
 
   return (
     <>
@@ -96,6 +97,50 @@ export function SettingsPanel() {
         <button className="btn w-full" onClick={() => s.addFloor(true)}>
           Duplicate current floor
         </button>
+      </Section>
+
+      <Section title="Plot of land">
+        <Toggle
+          label="This plan sits on a plot"
+          checked={!!site?.enabled}
+          onChange={() => s.updateSite({ enabled: !site?.enabled })}
+        />
+        {site?.enabled ? (
+          <>
+            <TextField label="Name" value={site.name} onChange={(name) => s.updateSite({ name })} />
+            <div>
+              <span className="field-label">Ground</span>
+              <Select
+                value={site.ground}
+                options={[
+                  { value: 'grass', label: 'Grass' },
+                  { value: 'gravel', label: 'Gravel' },
+                  { value: 'sand', label: 'Sand' },
+                  { value: 'paving', label: 'Paving' },
+                  { value: 'earth', label: 'Bare earth' },
+                ]}
+                onChange={(ground) => s.updateSite({ ground: ground as typeof site.ground })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <NumberField label="Width" value={site.w} step={0.5} min={1} onChange={(w) => s.updateSite({ w })} />
+              <NumberField label="Depth" value={site.d} step={0.5} min={1} onChange={(d) => s.updateSite({ d })} />
+              <NumberField label="Left edge" value={site.x} step={0.5} min={-1000} onChange={(x) => s.updateSite({ x })} />
+              <NumberField label="Top edge" value={site.y} step={0.5} min={-1000} onChange={(y) => s.updateSite({ y })} />
+            </div>
+            <div className="flex items-center justify-between border-b border-ink-800 py-1">
+              <span className="text-mist-400">Plot area</span>
+              <span className="font-medium tabular-nums text-mist-200">{(site.w * site.d).toFixed(1)} m²</span>
+            </div>
+            <button className="btn w-full" onClick={s.fitSiteToPlan}>
+              Fit the plot around everything drawn
+            </button>
+            <p className="text-[11px] leading-relaxed text-mist-400">
+              Draw as many buildings as you like inside it, then use the Site catalogue for a pool, parked cars,
+              trees or a shed. For a fence or a hedge, draw a wall (W) and set its Type in the properties.
+            </p>
+          </>
+        ) : null}
       </Section>
 
       <Section title="Walkthrough">

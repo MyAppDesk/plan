@@ -1,4 +1,5 @@
 import type { Floor, Project } from '../types'
+import { floorBounds } from './geometry'
 import {
   addColumn,
   addItem,
@@ -28,6 +29,9 @@ export interface HomeOptions {
   separateKitchen: boolean
   terrace: boolean
   roofTerrace: boolean
+  /** put the building on a plot, with a fence, a driveway and a garden */
+  plot: boolean
+  pool: boolean
 }
 
 export const DEFAULT_OPTIONS: HomeOptions = {
@@ -40,6 +44,8 @@ export const DEFAULT_OPTIONS: HomeOptions = {
   separateKitchen: false,
   terrace: false,
   roofTerrace: false,
+  plot: false,
+  pool: false,
 }
 
 export function starterProject(): Project {
@@ -391,7 +397,84 @@ export function generateHome(opts: Partial<HomeOptions> = {}): Project {
     floors.push(r)
   }
 
-  return { version: 3, name: o.name, eyeHeight: Math.max(1.2, o.personHeight - 0.1), floors }
+  const project: Project = {
+    version: 3,
+    name: o.name,
+    eyeHeight: Math.max(1.2, o.personHeight - 0.1),
+    floors,
+  }
+  if (o.plot) layOutPlot(project, g, o)
+  return project
+}
+
+/** Wraps the building in a garden: fence, gate, driveway, planting, pool. */
+function layOutPlot(project: Project, g: Floor, o: HomeOptions) {
+  const b = floorBounds(g)
+  const front = 7 // room for the driveway
+  const back = o.pool ? 9 : 6
+  const sides = 4
+  const site = {
+    enabled: true,
+    name: 'Plot',
+    x: b.minX - sides,
+    y: b.minY - front,
+    w: b.maxX - b.minX + sides * 2,
+    d: b.maxY - b.minY + front + back,
+    ground: 'grass' as const,
+  }
+  project.site = site
+
+  // fence right on the boundary, with a gate on the street side
+  const corners = [
+    { x: site.x, y: site.y },
+    { x: site.x + site.w, y: site.y },
+    { x: site.x + site.w, y: site.y + site.d },
+    { x: site.x, y: site.y + site.d },
+  ]
+  const ids = corners.map((c) => addPoint(g, c.x, c.y))
+  for (let i = 0; i < ids.length; i++) {
+    const wall = addWall(g, ids[i], ids[(i + 1) % ids.length], 0.08)
+    wall.style = 'fence'
+    wall.height = 1.8
+    wall.base = 0
+  }
+  // a gate straight ahead of the front door
+  placeOpening(g, corners[0], corners[1], 'door', site.w / 2, 1.2, { height: 1.8 })
+
+  // driveway with a car, in front of the house
+  const driveX = site.x + site.w / 2
+  const driveY = site.y + front / 2
+  const drive = addItem(g, 'paving', driveX, driveY)
+  drive.w = 3.2
+  drive.d = Math.max(4.5, front - 1.5)
+  addItem(g, 'car', driveX, driveY)
+
+  // garden at the back
+  const cx = site.x + site.w * 0.5
+  const gardenY = b.maxY + back / 2
+  if (o.pool) {
+    const pool = addItem(g, 'pool', cx, gardenY + 0.8, Math.PI / 2)
+    pool.w = 3.5
+    pool.d = Math.min(8, site.w - 6)
+    // sunbathing between the house and the water
+    addItem(g, 'lounger', cx - 1.1, gardenY - 2.4)
+    addItem(g, 'lounger', cx + 1.1, gardenY - 2.4)
+  } else {
+    addItem(g, 'bench', cx, gardenY)
+  }
+  addItem(g, 'shed', site.x + 1.9, site.y + site.d - 1.6)
+
+  // planting, kept a couple of metres clear of the fence
+  const inside = (x: number, y: number, r: number) => ({
+    x: Math.min(Math.max(x, site.x + r), site.x + site.w - r),
+    y: Math.min(Math.max(y, site.y + r), site.y + site.d - r),
+  })
+  const t1 = inside(site.x + 2.4, b.minY - 2.6, 2.0)
+  const t2 = inside(site.x + site.w - 2.4, site.y + site.d - 2.6, 2.0)
+  addItem(g, 'tree', t1.x, t1.y)
+  addItem(g, 'tree', t2.x, t2.y)
+  const hedge = inside(site.x + site.w - 1.6, site.y + front * 0.4, 1.2)
+  addItem(g, 'hedge-block', hedge.x, hedge.y, Math.PI / 2)
 }
 
 /** One-room flat: everything in a single space, plus a bathroom. */
@@ -463,6 +546,21 @@ export const TEMPLATES: Template[] = [
     blurb: 'Three bedrooms, two bathrooms, a separate kitchen and stairs up to a roof terrace.',
     build: (o) =>
       generateHome({ ...o, bedrooms: 3, bathrooms: 2, separateKitchen: true, roofTerrace: true, terrace: true }),
+  },
+  {
+    id: 'plot',
+    name: 'House on a plot',
+    blurb: 'A three-bedroom house in a fenced garden with a driveway, a pool, a shed and trees.',
+    build: (o) =>
+      generateHome({
+        ...o,
+        bedrooms: 3,
+        bathrooms: 2,
+        separateKitchen: true,
+        plot: true,
+        pool: true,
+        terrace: true,
+      }),
   },
   {
     id: 'sample',

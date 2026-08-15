@@ -46,6 +46,14 @@ const SECTIONS = [
     ],
   },
   {
+    title: 'Outdoors',
+    rows: [
+      ['—', 'Settings → Plot of land turns on a site the buildings stand on'],
+      ['—', 'A wall can be a fence, a railing or a hedge — set Type in its properties'],
+      ['—', 'Pools, cars, trees, sheds and paving live in the Site group of the catalogue'],
+    ],
+  },
+  {
     title: 'Preview',
     rows: [
       ['1 2 3', 'Plan · 3D · Walk'],

@@ -147,6 +147,27 @@ export function PropertiesPanel() {
             onChange={(v) => st.getState().updateWall(wall.id, { thickness: v })}
           />
           <Select
+            label="Type"
+            value={wall.style ?? 'solid'}
+            options={[
+              { value: 'solid', label: 'Solid wall' },
+              { value: 'fence', label: 'Fence — posts and rails' },
+              { value: 'railing', label: 'Railing — posts and balusters' },
+              { value: 'hedge', label: 'Hedge' },
+            ]}
+            onChange={(style) => {
+              const preset =
+                style === 'fence'
+                  ? { thickness: 0.08, height: 1.8 }
+                  : style === 'railing'
+                    ? { thickness: 0.06, height: 1.0 }
+                    : style === 'hedge'
+                      ? { thickness: 0.5, height: 1.6 }
+                      : {}
+              st.getState().updateWall(wall.id, { style: style as typeof wall.style, base: 0, ...preset })
+            }}
+          />
+          <Select
             label="Vertical extent"
             value={matchPreset(heightPresets(floor.height), wall.base, wall.height)}
             options={[
