@@ -213,6 +213,14 @@ export function PropertiesPanel() {
               Stretch up to the ceiling ({floor.height.toFixed(2)} m)
             </button>
           ) : null}
+          <div>
+            <span className="field-label">Colour</span>
+            <ColorPicker
+              value={wall.color ?? '#dfe4ee'}
+              colors={['#dfe4ee', '#c9cedb', '#b7a181', '#8b6a45', '#5d6778', '#3f6b3c', '#a2564f', '#43485a']}
+              onChange={(color) => st.getState().updateWall(wall.id, { color })}
+            />
+          </div>
           <button
             className="btn w-full"
             title="Adds a corner in the middle so the wall can bend around a column"
