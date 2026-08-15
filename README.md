@@ -5,6 +5,49 @@ furniture, then look at it in 3D and walk through it at eye height.
 
 Everything runs client-side. Your plan is saved in the browser and can be exported as JSON or PNG.
 
+![The plan view](docs/ui-plan.webp)
+
+*Every picture in this README is a real screenshot of the app, taken by `npm run docs:shoot` — it builds the
+project, serves it, and drives the actual UI in Chromium.*
+
+## Measured the way you measure
+
+Walls are stored as a centreline with a thickness, but nobody measures a room down the middle of its walls.
+Settings → Measurements picks where every figure comes from: the interior faces (the clear, usable size — the
+default), the centrelines, or the outside faces. Areas, dimension lines and anything you type follow it.
+
+![Switching between interior, centreline and exterior](docs/ui-basis.webp)
+
+A selected wall is dimensioned on **both** of its faces, because at a corner one face is cut back and the other
+carries on past the centreline. The panel lists all three lengths at once.
+
+![A wall selected, dimensioned on both faces](docs/ui-wall.webp)
+
+A room gives you its interior, centreline and exterior area together, plus the wall area to paint and the
+volume. The dashed outline shows exactly what is being measured.
+
+![A room selected, with all three areas](docs/ui-room.webp)
+
+## In 3D
+
+The plan is the model: walls with real thickness and mitred corners, openings cut through them, furniture
+generated from its own dimensions. Click anything in 3D to select it and open its properties.
+
+![Orbiting the model in the 3D view](docs/ui-orbit.webp)
+
+![The 3D view](docs/ui-3d.webp)
+
+Then walk through it at eye height, with collision against walls and closed doors.
+
+![Walk mode](docs/ui-walk.webp)
+
+## Furniture catalogue
+
+Every piece is generated from its width / depth / height, so any size you type is right in both 2D and 3D.
+Nothing is downloaded.
+
+![The catalogue](docs/ui-catalog.webp)
+
 ## Getting started
 
 The landing page explains the app, and a two-step wizard asks what you are drawing (studio, one-bed, two-bed,
@@ -93,17 +136,23 @@ listed under the project name in the toolbar.
 | `F` `G` `H` | Zoom to fit · Grid snapping · Snap furniture to walls |
 | `Ctrl/⌘ Z` | Undo (add `Shift` to redo) |
 | `Del` `C` | Delete / duplicate the selection |
-| `Shift` | Constrain to horizontal / vertical while drawing |
+| `Shift` | Keep it straight — horizontal / vertical while drawing, one axis while dragging |
+| `Alt` + drag a wall face | Extrude it into a column, a recess or a bay |
 | `Space` + drag | Pan with any tool |
 
 ## Development
 
 ```bash
 npm install
-npm run dev      # local dev server
-npm run build    # type-check + production build into dist/
-npm run preview  # serve the production build
+npm run dev          # local dev server
+npm run build        # type-check + production build into dist/
+npm run preview      # serve the production build
+npm run docs:shoot   # rebuild, then re-take the screenshots in this README
 ```
+
+`docs:shoot` builds the app, serves `dist/` on a local port, drives it in headless Chromium (Playwright) and
+writes the stills and clips into `docs/`. It needs `cwebp` and `ffmpeg` on the path
+(`brew install webp ffmpeg`).
 
 ## Deployment
 
