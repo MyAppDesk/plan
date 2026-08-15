@@ -12,8 +12,15 @@ Everything runs client-side. Your plan is saved in the browser and can be export
 - **Walls** — every edge is a real wall with its own thickness and height. Type an exact length and the wall
   resizes. Corners weld together, so neighbouring rooms share a single wall. Double-click a wall to drop a
   corner on it and bend the run around a column or a recess.
-- **Low walls** — give any wall its own height for a terrace parapet, a half wall or a kerb. Presets are one
-  click away, and low walls are drawn dashed on the plan with their height next to the length.
+- **Extrude** — Shift-drag any wall face to pull it out (or push it in). The wall becomes three, the room
+  outline follows, and openings travel with the face. Split a wall twice first and extrude the middle piece to
+  get a column or a niche.
+- **Partial walls** — every wall has a base height and a height, so it can be a full partition, a terrace
+  parapet or a kerb (dashed on the plan), or a beam / boxing hanging from the ceiling that you walk under
+  (dotted on the plan). One-click presets for each.
+- **Columns & piers** — free-standing square or round structure with its own footprint, base and height:
+  load-bearing pillars, plinths, or boxing over a duct. They block you in walk mode when they reach the floor,
+  and let you pass when they only hang from the ceiling.
 - **Resize grips** — the usual eight handles around the selection: drag to resize a room's outline or a piece
   of furniture, anchored on the opposite side.
 - **Wall snapping** — furniture lands against the *face* of a wall (its thickness is respected, so nothing
@@ -25,6 +32,8 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
 - **Tape measure** — measure any two points on the plan.
+- **Sample flat** — ships with a small flat, terrace included, so there is something to walk through
+  immediately (Settings → Reset to sample flat).
 - **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
 - **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
 - **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls. You can
@@ -37,7 +46,8 @@ Everything runs client-side. Your plan is saved in the browser and can be export
 | --- | --- |
 | `1` `2` `3` | Plan · 3D · Walk |
 | `V` `R` `P` `W` | Select · Rectangular room · Polygon room · Wall |
-| `D` `N` `I` `M` `X` | Door · Window · Furniture · Tape measure · Delete |
+| `D` `N` `K` | Door · Window · Column |
+| `I` `M` `X` | Furniture · Tape measure · Delete |
 | `F` `G` `H` | Zoom to fit · Grid snapping · Snap furniture to walls |
 | `Ctrl/⌘ Z` | Undo (add `Shift` to redo) |
 | `Del` `C` | Delete / duplicate the selection |

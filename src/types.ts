@@ -14,9 +14,30 @@ export interface Wall {
   b: ID
   /** metres; overrides the floor default when set */
   thickness: number
-  /** metres; null → inherit the floor height */
+  /** distance from the floor slab to the bottom of the wall — > 0 hangs it from
+   *  above, for a beam or a partial partition */
+  base: number
+  /** metres of wall above `base`; null → carry on up to the ceiling */
   height: number | null
   color?: string
+}
+
+/** A free-standing pillar, pier or stub of structure. */
+export interface Column {
+  id: ID
+  name: string
+  x: number
+  y: number
+  /** footprint; `w` runs along the local x axis */
+  w: number
+  d: number
+  rot: number
+  /** distance from the floor slab to the bottom */
+  base: number
+  /** metres above `base`; null → up to the ceiling */
+  height: number | null
+  shape: 'rect' | 'round'
+  color: string
 }
 
 export interface Room {
@@ -85,6 +106,7 @@ export interface Floor {
   points: Pt[]
   walls: Wall[]
   rooms: Room[]
+  columns: Column[]
   openings: Opening[]
   items: Item[]
   measures: Measure[]
@@ -96,7 +118,7 @@ export interface Project {
   floors: Floor[]
 }
 
-export type EntityKind = 'point' | 'wall' | 'room' | 'opening' | 'item' | 'measure'
+export type EntityKind = 'point' | 'wall' | 'room' | 'opening' | 'item' | 'measure' | 'column'
 
 export interface Selection {
   kind: EntityKind
@@ -110,6 +132,7 @@ export type Tool =
   | 'wall'
   | 'door'
   | 'window'
+  | 'column'
   | 'item'
   | 'measure'
   | 'delete'

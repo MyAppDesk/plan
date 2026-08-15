@@ -5,7 +5,16 @@ import * as THREE from 'three'
 import type { Floor, Opening } from '../../types'
 import { useActiveFloor, useProject } from '../../store/useProject'
 import { catalogItem } from '../../lib/catalog'
-import { angleOf, floorBounds, pointMap, roomPoints, wallEnds, wallHeightOf, wallSolids } from '../../lib/geometry'
+import {
+  angleOf,
+  columnTopOf,
+  floorBounds,
+  pointMap,
+  roomPoints,
+  wallEnds,
+  wallTopOf,
+  wallSolids,
+} from '../../lib/geometry'
 import { WalkControls } from './WalkControls'
 
 const WALL_COLOR = '#dfe4ee'
@@ -80,6 +89,33 @@ function Walls({ floor }: { floor: Floor }) {
   )
 }
 
+function Columns({ floor }: { floor: Floor }) {
+  return (
+    <group>
+      {(floor.columns ?? []).map((c) => {
+        const top = columnTopOf(floor, c)
+        const h = Math.max(0.02, top - c.base)
+        return (
+          <mesh
+            key={c.id}
+            position={[c.x, floor.elevation + c.base + h / 2, c.y]}
+            rotation={[0, -c.rot, 0]}
+            castShadow
+            receiveShadow
+          >
+            {c.shape === 'round' ? (
+              <cylinderGeometry args={[Math.max(c.w, c.d) / 2, Math.max(c.w, c.d) / 2, h, 24]} />
+            ) : (
+              <boxGeometry args={[c.w, h, c.d]} />
+            )}
+            <meshStandardMaterial color={c.color} roughness={0.9} />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
 /* ------------------------------------------------------------------ */
 /* doors + windows                                                     */
 /* ------------------------------------------------------------------ */
@@ -94,7 +130,7 @@ function OpeningDetail({ floor, opening }: { floor: Floor; opening: Opening }) {
   const cy = e.a.y + Math.sin(ang) * opening.offset
   const t = wall.thickness
   const y0 = floor.elevation
-  const wallH = wallHeightOf(floor, wall)
+  const wallH = wallTopOf(floor, wall)
   const sill = opening.kind === 'door' ? 0 : opening.sill
   const height = Math.min(opening.height, wallH - sill)
   const w = opening.width
@@ -194,6 +230,7 @@ function FloorGroup({ floor, furniture, ceiling }: { floor: Floor; furniture: bo
     <group>
       <RoomSlabs floor={floor} ceiling={ceiling} />
       <Walls floor={floor} />
+      <Columns floor={floor} />
       {floor.openings.map((o) => (
         <OpeningDetail key={o.id} floor={floor} opening={o} />
       ))}

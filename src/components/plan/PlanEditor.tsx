@@ -22,8 +22,11 @@ import {
 } from '../../lib/geometry'
 import {
   C,
+  ColumnGhost,
+  ColumnShape,
   CornerHandles,
   GridShape,
+  ExtrudeDraft,
   ItemGhost,
   ItemShape,
   MeasureShape,
@@ -42,6 +45,14 @@ type Drag =
   | { kind: 'wall'; id: ID; a: { id: ID; x: number; y: number }; b: { id: ID; x: number; y: number }; origin: Vec }
   | { kind: 'room'; id: ID; origin: Vec; applied: Vec }
   | { kind: 'item'; id: ID; grab: Vec }
+  | { kind: 'column'; id: ID; grab: Vec }
+  | {
+      kind: 'column-resize'
+      id: ID
+      sx: number
+      sy: number
+      base: { x: number; y: number; w: number; d: number; rot: number }
+    }
   | {
       kind: 'item-resize'
       id: ID
@@ -56,6 +67,7 @@ type Drag =
       sy: number
       base: { minX: number; minY: number; maxX: number; maxY: number }
     }
+  | { kind: 'extrude'; id: ID; a: Vec; b: Vec; n: Vec; offset: number }
   | { kind: 'rotate'; id: ID }
   | { kind: 'opening'; id: ID }
   | { kind: 'measure'; id: ID; end: 'a' | 'b' }
@@ -295,6 +307,9 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       case 'item':
         store.getState().createItem(catalogKind, s.p.x, s.p.y)
         break
+      case 'column':
+        store.getState().createColumn(s.p.x, s.p.y)
+        break
       case 'measure': {
         if (!measureStart) setMeasureStart(s.p)
         else {
@@ -329,6 +344,10 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       const s = snapTo(w, { from: rectDraft.a })
       setRectDraft({ a: rectDraft.a, b: s.p })
       setGuides(s.guides)
+      return
+    }
+    if (tool === 'item' || tool === 'column') {
+      setCursorPos(snapTo(w).p)
       return
     }
     if (tool === 'poly' || tool === 'wall' || tool === 'measure') {
@@ -382,6 +401,17 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         st.updateItem(d.id, { x: next.x, y: next.y, rot: next.rot })
         break
       }
+      case 'column': {
+        const c = floor.columns.find((x) => x.id === d.id)
+        if (!c) break
+        const target = { x: w.x - d.grab.x, y: w.y - d.grab.y }
+        const s = snapTo(target, { exclude: floor.points.map((p) => p.id) })
+        let next = { x: s.p.x, y: s.p.y, w: c.w, d: c.d, rot: c.rot }
+        if (snapWalls) next = snapToWallFace(floor, next) ?? next
+        st.updateColumn(d.id, { x: next.x, y: next.y, rot: next.rot })
+        break
+      }
+      case 'column-resize':
       case 'item-resize': {
         const { base, sx, sy } = d
         const cos = Math.cos(base.rot)
@@ -405,12 +435,14 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
           nd = Math.max(0.05, round(Math.abs(ly - anchor)))
           cly = anchor + (sy * nd) / 2
         }
-        st.updateItem(d.id, {
+        const box = {
           w: nw,
           d: nd,
           x: base.x + clx * cos - cly * sin,
           y: base.y + clx * sin + cly * cos,
-        })
+        }
+        if (d.kind === 'column-resize') st.updateColumn(d.id, box)
+        else st.updateItem(d.id, box)
         break
       }
       case 'room-resize': {
@@ -422,6 +454,12 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         if (d.sy > 0) box.maxY = Math.max(box.minY + 0.2, s.p.y)
         if (d.sy < 0) box.minY = Math.min(box.maxY - 0.2, s.p.y)
         st.setRoomBounds(d.id, box)
+        break
+      }
+      case 'extrude': {
+        let offset = (w.x - d.a.x) * d.n.x + (w.y - d.a.y) * d.n.y
+        if (snap) offset = Math.round(offset / gridSize) * gridSize
+        setDrag({ ...d, offset })
         break
       }
       case 'rotate': {
@@ -457,6 +495,12 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   }
 
   const onStageUp = () => {
+    if (drag?.kind === 'extrude') {
+      if (Math.abs(drag.offset) > 0.05) store.getState().extrudeWall(drag.id, drag.offset)
+      setDrag(null)
+      setGuides({})
+      return
+    }
     if (drag && drag.kind !== 'pan') {
       if (drag.kind === 'point') {
         const p = floor.points.find((q) => q.id === drag.id)
@@ -531,6 +575,20 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       case 'wall': {
         const wall = floor.walls.find((x) => x.id === sel.id)
         const ends = wall ? wallEnds(floor, wall) : null
+        if (wall && ends && shiftRef.current) {
+          // Shift-drag pulls the wall out into a column, a recess or a bay
+          st.endDrag()
+          const ang = angleOf(ends.a, ends.b)
+          setDrag({
+            kind: 'extrude',
+            id: sel.id,
+            a: { x: ends.a.x, y: ends.a.y },
+            b: { x: ends.b.x, y: ends.b.y },
+            n: { x: -Math.sin(ang), y: Math.cos(ang) },
+            offset: 0,
+          })
+          break
+        }
         if (wall && ends)
           setDrag({
             kind: 'wall',
@@ -547,6 +605,11 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       case 'item': {
         const it = floor.items.find((i) => i.id === sel.id)
         if (it) setDrag({ kind: 'item', id: sel.id, grab: { x: w.x - it.x, y: w.y - it.y } })
+        break
+      }
+      case 'column': {
+        const c = floor.columns.find((x) => x.id === sel.id)
+        if (c) setDrag({ kind: 'column', id: sel.id, grab: { x: w.x - c.x, y: w.y - c.y } })
         break
       }
       case 'opening':
@@ -566,6 +629,16 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     store.getState().select({ kind: 'item', id })
     store.getState().beginDrag()
     setDrag({ kind: 'item-resize', id, sx, sy, base: { x: it.x, y: it.y, w: it.w, d: it.d, rot: it.rot } })
+  }
+
+  const startColumnResize = (id: ID) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true
+    if (tool !== 'select') return
+    const c = floor.columns.find((x) => x.id === id)
+    if (!c) return
+    store.getState().select({ kind: 'column', id })
+    store.getState().beginDrag()
+    setDrag({ kind: 'column-resize', id, sx, sy, base: { x: c.x, y: c.y, w: c.w, d: c.d, rot: c.rot } })
   }
 
   const startRoomResize = (id: ID) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => {
@@ -688,6 +761,18 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               ))
             : null}
 
+          {(floor.columns ?? []).map((c) => (
+            <ColumnShape
+              key={c.id}
+              floor={floor}
+              column={c}
+              scale={view.scale}
+              showLabel={showDims}
+              selected={selection?.kind === 'column' && selection.id === c.id}
+              onDown={startEntity({ kind: 'column', id: c.id })}
+            />
+          ))}
+
           {floor.measures.map((m) => (
             <MeasureShape
               key={m.id}
@@ -706,6 +791,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               scale={view.scale}
               onItemResize={startItemResize}
               onRoomResize={startRoomResize}
+              onColumnResize={startColumnResize}
             />
           ) : null}
 
@@ -743,6 +829,10 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
 
           {rectDraft ? <RectDraft a={rectDraft.a} b={rectDraft.b} scale={view.scale} /> : null}
 
+          {drag?.kind === 'extrude' && Math.abs(drag.offset) > 0.001 ? (
+            <ExtrudeDraft a={drag.a} b={drag.b} n={drag.n} offset={drag.offset} scale={view.scale} />
+          ) : null}
+
           {(tool === 'poly' || tool === 'wall') && path.length ? (
             <PathDraft
               pts={path}
@@ -758,6 +848,8 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
           ) : null}
 
           {tool === 'item' ? <ItemGhost kind={catalogKind} at={cursor} snapWalls={snapWalls} floor={floor} /> : null}
+
+          {tool === 'column' ? <ColumnGhost at={cursor} snapWalls={snapWalls} floor={floor} /> : null}
 
           {(tool === 'door' || tool === 'window') && hoverWall ? (
             <OpeningGhost floor={floor} wallId={hoverWall.id} offset={hoverWall.offset} kind={tool} />

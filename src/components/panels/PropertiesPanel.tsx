@@ -101,21 +101,29 @@ export function PropertiesPanel() {
               onChange={(v) => st.getState().updateWall(wall.id, { thickness: v })}
             />
             <NumberField
-              label="Height"
-              value={wall.height ?? floor.height}
+              label="Starts at"
+              value={wall.base}
               step={0.05}
-              min={0.3}
-              max={8}
-              onChange={(v) => st.getState().updateWall(wall.id, { height: v })}
+              min={0}
+              max={Math.max(0, floor.height - 0.05)}
+              onChange={(v) => st.getState().updateWall(wall.id, { base: v })}
             />
           </Row>
+          <NumberField
+            label="Height above that"
+            value={wall.height ?? floor.height - wall.base}
+            step={0.05}
+            min={0.05}
+            max={8}
+            onChange={(v) => st.getState().updateWall(wall.id, { height: v })}
+          />
           <div>
-            <span className="field-label">Low wall presets</span>
+            <span className="field-label">From the floor</span>
             <div className="grid grid-cols-4 gap-1.5">
               <button
-                className={`btn ${wall.height === null ? 'border-accent text-accent' : ''}`}
+                className={`btn ${wall.height === null && wall.base === 0 ? 'border-accent text-accent' : ''}`}
                 title="Full height, same as the floor"
-                onClick={() => st.getState().updateWall(wall.id, { height: null })}
+                onClick={() => st.getState().updateWall(wall.id, { base: 0, height: null })}
               >
                 Full
               </button>
@@ -126,20 +134,43 @@ export function PropertiesPanel() {
               ].map((p) => (
                 <button
                   key={p.v}
-                  className={`btn ${wall.height === p.v ? 'border-accent text-accent' : ''}`}
+                  className={`btn ${wall.base === 0 && wall.height === p.v ? 'border-accent text-accent' : ''}`}
                   title={p.title}
-                  onClick={() => st.getState().updateWall(wall.id, { height: p.v })}
+                  onClick={() => st.getState().updateWall(wall.id, { base: 0, height: p.v })}
                 >
                   {p.label}
                 </button>
               ))}
             </div>
-            {wall.height !== null ? (
-              <p className="mt-1.5 text-[11px] text-mist-400">
-                Low wall — drawn dashed on the plan and built {wall.height.toFixed(2)} m high in 3D. Floor default is{' '}
-                {floor.height.toFixed(2)} m.
-              </p>
-            ) : null}
+            <span className="field-label mt-2">Hanging from the ceiling</span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {[
+                { label: 'Beam 30', drop: 0.3 },
+                { label: 'Beam 50', drop: 0.5 },
+                { label: 'Down to 2.10', drop: Math.max(0.05, floor.height - 2.1) },
+              ].map((p) => (
+                <button
+                  key={p.label}
+                  className="btn"
+                  title="Leaves the floor clear underneath"
+                  onClick={() =>
+                    st.getState().updateWall(wall.id, {
+                      base: Math.max(0, floor.height - p.drop),
+                      height: null,
+                    })
+                  }
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-mist-400">
+              {wall.base > 0
+                ? `Hangs from ${wall.base.toFixed(2)} m up to ${(wall.height === null ? floor.height : wall.base + wall.height).toFixed(2)} m — you can walk underneath it. Drawn dotted on the plan.`
+                : wall.height !== null
+                  ? `Low wall, ${wall.height.toFixed(2)} m high. Drawn dashed on the plan. Floor default is ${floor.height.toFixed(2)} m.`
+                  : `Full height, ${floor.height.toFixed(2)} m.`}
+            </p>
           </div>
           <button
             className="btn w-full"
@@ -336,6 +367,113 @@ export function PropertiesPanel() {
     )
   }
 
+  if (selection.kind === 'column') {
+    const column = (floor.columns ?? []).find((c) => c.id === selection.id)
+    if (!column) return <FloorProps />
+    const top = column.height === null ? floor.height : column.base + column.height
+    const round = column.shape === 'round'
+    return (
+      <>
+        <Section title="Column">
+          <TextField label="Name" value={column.name} onChange={(name) => st.getState().updateColumn(column.id, { name })} />
+          <SegButtons
+            value={column.shape}
+            options={[
+              { value: 'rect', label: 'Square' },
+              { value: 'round', label: 'Round' },
+            ]}
+            onChange={(shape) => st.getState().updateColumn(column.id, { shape })}
+          />
+          {round ? (
+            <NumberField
+              label="Diameter"
+              value={column.w}
+              step={0.05}
+              min={0.05}
+              onChange={(v) => st.getState().updateColumn(column.id, { w: v, d: v })}
+            />
+          ) : (
+            <Row>
+              <NumberField label="Width" value={column.w} step={0.05} min={0.05} onChange={(w) => st.getState().updateColumn(column.id, { w })} />
+              <NumberField label="Depth" value={column.d} step={0.05} min={0.05} onChange={(d) => st.getState().updateColumn(column.id, { d })} />
+            </Row>
+          )}
+          <Row>
+            <NumberField label="X" value={column.x} step={0.05} min={-1000} onChange={(x) => st.getState().updateColumn(column.id, { x })} />
+            <NumberField label="Y" value={column.y} step={0.05} min={-1000} onChange={(y) => st.getState().updateColumn(column.id, { y })} />
+          </Row>
+          <Row>
+            <NumberField
+              label="Starts at"
+              value={column.base}
+              step={0.05}
+              min={0}
+              max={Math.max(0, floor.height - 0.05)}
+              onChange={(base) => st.getState().updateColumn(column.id, { base })}
+            />
+            <NumberField
+              label="Height above that"
+              value={column.height ?? floor.height - column.base}
+              step={0.05}
+              min={0.05}
+              max={8}
+              onChange={(height) => st.getState().updateColumn(column.id, { height })}
+            />
+          </Row>
+          <div className="grid grid-cols-3 gap-1.5">
+            <button
+              className={`btn ${column.base === 0 && column.height === null ? 'border-accent text-accent' : ''}`}
+              title="Floor to ceiling"
+              onClick={() => st.getState().updateColumn(column.id, { base: 0, height: null })}
+            >
+              Full
+            </button>
+            <button
+              className="btn"
+              title="Stub rising from the floor — a plinth or a half pier"
+              onClick={() => st.getState().updateColumn(column.id, { base: 0, height: 1.1 })}
+            >
+              From floor
+            </button>
+            <button
+              className="btn"
+              title="Boxing hanging from the ceiling"
+              onClick={() => st.getState().updateColumn(column.id, { base: Math.max(0, floor.height - 0.5), height: null })}
+            >
+              From ceiling
+            </button>
+          </div>
+          <Row>
+            <NumberField
+              label="Rotation"
+              unit="°"
+              value={(column.rot * 180) / Math.PI}
+              step={5}
+              min={-360}
+              max={360}
+              onChange={(deg) => st.getState().updateColumn(column.id, { rot: (deg * Math.PI) / 180 })}
+            />
+            <div className="flex items-end">
+              <button className="btn w-full" onClick={() => st.getState().updateColumn(column.id, { rot: column.rot + Math.PI / 2 })}>
+                <RotateCw size={14} /> 90°
+              </button>
+            </div>
+          </Row>
+          <div>
+            <span className="field-label">Colour</span>
+            <ColorPicker value={column.color} colors={ITEM_COLORS} onChange={(color) => st.getState().updateColumn(column.id, { color })} />
+          </div>
+        </Section>
+        <Section title="Measurements">
+          <Stat label="Footprint" value={round ? `⌀ ${formatLen(column.w)}` : `${formatLen(column.w)} × ${formatLen(column.d)}`} />
+          <Stat label="Spans" value={`${formatLen(column.base)} → ${formatLen(top)}`} />
+          <Stat label="Blocks walking" value={column.base < 1.7 && top > 0.1 ? 'Yes' : 'No — you pass under it'} />
+        </Section>
+        <Actions onDuplicate={() => st.getState().duplicate(selection)} onDelete={() => st.getState().remove(selection)} />
+      </>
+    )
+  }
+
   if (selection.kind === 'point') {
     const p = floor.points.find((q) => q.id === selection.id)
     if (!p) return <FloorProps />
@@ -433,6 +571,7 @@ function FloorProps() {
         <Stat label="Walls" value={String(floor.walls.length)} />
         <Stat label="Doors" value={String(floor.openings.filter((o) => o.kind === 'door').length)} />
         <Stat label="Windows" value={String(floor.openings.filter((o) => o.kind === 'window').length)} />
+        <Stat label="Columns" value={String((floor.columns ?? []).length)} />
         <Stat label="Furniture" value={String(floor.items.length)} />
       </Section>
       <div className="px-3 py-3 text-[11px] leading-relaxed text-mist-400">

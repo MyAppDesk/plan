@@ -1,6 +1,6 @@
 import { Arc, Circle, Group, Line, Rect, Shape, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import type { Floor, Item, Measure, Opening, Room, Selection, Wall } from '../../types'
+import type { Column, Floor, Item, Measure, Opening, Room, Selection, Wall } from '../../types'
 import { catalogItem } from '../../lib/catalog'
 import {
   angleOf,
@@ -11,7 +11,10 @@ import {
   polygonBounds,
   polygonCentroid,
   pointMap,
+  columnTopOf,
   snapToWallFace,
+  wallBaseOf,
+  wallTopOf,
   roomArea,
   roomPoints,
   wallEnds,
@@ -20,6 +23,8 @@ import {
 export const C = {
   wall: '#c9d2e2',
   wallLow: '#8ba0c4',
+  wallOverhead: '#c9a86a',
+  column: '#d5dbe6',
   wallSelected: '#4f8cff',
   wallHover: '#8fb4ff',
   bg: '#0e121a',
@@ -210,8 +215,10 @@ export function WallShape({
   const e = wallEnds(floor, wall)
   if (!e) return null
   const len = dist(e.a, e.b)
-  const height = wall.height ?? floor.height
-  const low = height < floor.height - 1e-6
+  const base = wallBaseOf(wall)
+  const top = wallTopOf(floor, wall)
+  const overhead = base > 1e-6
+  const low = !overhead && top < floor.height - 1e-6
   const ang = angleOf(e.a, e.b)
   const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
   const deg = (ang * 180) / Math.PI
@@ -224,10 +231,12 @@ export function WallShape({
     <Group>
       <Line
         points={[e.a.x, e.a.y, e.b.x, e.b.y]}
-        stroke={selected ? C.wallSelected : hovered ? C.wallHover : low ? C.wallLow : C.wall}
+        stroke={
+          selected ? C.wallSelected : hovered ? C.wallHover : overhead ? C.wallOverhead : low ? C.wallLow : C.wall
+        }
         strokeWidth={wall.thickness}
         lineCap="butt"
-        dash={low ? [0.32, 0.16] : undefined}
+        dash={overhead ? [0.1, 0.12] : low ? [0.32, 0.16] : undefined}
         hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
         onMouseDown={onDown}
         onDblClick={onDblClick}
@@ -238,9 +247,15 @@ export function WallShape({
           x={mid.x + nx}
           y={mid.y + ny}
           rotation={flip ? deg + 180 : deg}
-          text={low ? `${formatLen(len)} · h ${formatLen(height)}` : formatLen(len)}
+          text={
+            overhead
+              ? `${formatLen(len)} · ${formatLen(base)}–${formatLen(top)}`
+              : low
+                ? `${formatLen(len)} · h ${formatLen(top)}`
+                : formatLen(len)
+          }
           scale={scale}
-          color={selected ? C.accent : low ? C.wallLow : C.dim}
+          color={selected ? C.accent : overhead ? C.wallOverhead : low ? C.wallLow : C.dim}
           size={10.5}
         />
       ) : null}
@@ -531,12 +546,14 @@ export function SelectionGrips({
   scale,
   onItemResize,
   onRoomResize,
+  onColumnResize,
 }: {
   floor: Floor
   selection: Selection | null
   scale: number
   onItemResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
   onRoomResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
+  onColumnResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
 }) {
   if (!selection) return null
 
@@ -546,6 +563,16 @@ export function SelectionGrips({
     return (
       <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
         <ResizeHandles hw={item.w / 2} hd={item.d / 2} scale={scale} onDown={onItemResize(item.id)} />
+      </Group>
+    )
+  }
+
+  if (selection.kind === 'column') {
+    const column = (floor.columns ?? []).find((c) => c.id === selection.id)
+    if (!column) return null
+    return (
+      <Group x={column.x} y={column.y} rotation={(column.rot * 180) / Math.PI}>
+        <ResizeHandles hw={column.w / 2} hd={column.d / 2} scale={scale} onDown={onColumnResize(column.id)} />
       </Group>
     )
   }
@@ -564,6 +591,110 @@ export function SelectionGrips({
   }
 
   return null
+}
+
+/* ------------------------------------------------------------------ */
+/* columns                                                             */
+/* ------------------------------------------------------------------ */
+
+export function ColumnShape({
+  floor,
+  column,
+  selected,
+  scale,
+  showLabel,
+  onDown,
+}: {
+  floor: Floor
+  column: Column
+  selected: boolean
+  scale: number
+  showLabel: boolean
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const color = selected ? C.accent : C.column
+  const top = columnTopOf(floor, column)
+  const grounded = column.base < 1e-6
+  const r = Math.max(column.w, column.d) / 2
+  const label = grounded
+    ? `${Math.round(column.w * 100)}×${Math.round(column.d * 100)}`
+    : `${formatLen(column.base)}–${formatLen(top)}`
+
+  return (
+    <Group x={column.x} y={column.y} rotation={(column.rot * 180) / Math.PI}>
+      {column.shape === 'round' ? (
+        <Circle
+          radius={r}
+          fill={grounded ? 'rgba(213,219,230,0.35)' : 'rgba(201,168,106,0.25)'}
+          stroke={color}
+          strokeWidth={selected ? 2 : 1.4}
+          strokeScaleEnabled={false}
+          dash={grounded ? undefined : [6, 5]}
+          onMouseDown={onDown}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      ) : (
+        <Rect
+          x={-column.w / 2}
+          y={-column.d / 2}
+          width={column.w}
+          height={column.d}
+          fill={grounded ? 'rgba(213,219,230,0.35)' : 'rgba(201,168,106,0.25)'}
+          stroke={color}
+          strokeWidth={selected ? 2 : 1.4}
+          strokeScaleEnabled={false}
+          dash={grounded ? undefined : [6, 5]}
+          onMouseDown={onDown}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      )}
+      {/* the usual structural cross-hatch */}
+      <Line
+        points={[-column.w / 2, -column.d / 2, column.w / 2, column.d / 2]}
+        stroke={color}
+        strokeWidth={1}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      <Line
+        points={[-column.w / 2, column.d / 2, column.w / 2, -column.d / 2]}
+        stroke={color}
+        strokeWidth={1}
+        strokeScaleEnabled={false}
+        listening={false}
+      />
+      {showLabel ? (
+        <Label
+          x={0}
+          y={Math.max(column.d, column.w) / 2 + 0.16}
+          text={label}
+          scale={scale}
+          color={selected ? C.accent : grounded ? C.dim : C.wallOverhead}
+          size={9.5}
+        />
+      ) : null}
+    </Group>
+  )
+}
+
+export function ColumnGhost({ at, floor, snapWalls }: { at: { x: number; y: number }; floor?: Floor; snapWalls?: boolean }) {
+  const size = 0.3
+  const placed =
+    snapWalls && floor ? (snapToWallFace(floor, { ...at, w: size, d: size, rot: 0 }) ?? { ...at, rot: 0 }) : { ...at, rot: 0 }
+  return (
+    <Group listening={false} x={placed.x} y={placed.y} rotation={(placed.rot * 180) / Math.PI} opacity={0.7}>
+      <Rect
+        x={-size / 2}
+        y={-size / 2}
+        width={size}
+        height={size}
+        fill="rgba(79,140,255,0.25)"
+        stroke={C.accent}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+      />
+    </Group>
+  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -722,6 +853,47 @@ export function PathDraft({
           bg="rgba(14,18,26,0.85)"
         />
       ) : null}
+    </Group>
+  )
+}
+
+/** Preview of a Shift-drag extrusion: the slab of wall you are about to pull out. */
+export function ExtrudeDraft({
+  a,
+  b,
+  n,
+  offset,
+  scale,
+}: {
+  a: { x: number; y: number }
+  b: { x: number; y: number }
+  n: { x: number; y: number }
+  offset: number
+  scale: number
+}) {
+  const a2 = { x: a.x + n.x * offset, y: a.y + n.y * offset }
+  const b2 = { x: b.x + n.x * offset, y: b.y + n.y * offset }
+  return (
+    <Group listening={false}>
+      <Line
+        points={[a.x, a.y, a2.x, a2.y, b2.x, b2.y, b.x, b.y]}
+        closed
+        fill="rgba(79,140,255,0.18)"
+        stroke={C.accent}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        dash={[8, 6]}
+      />
+      <Label
+        x={(a2.x + b2.x) / 2}
+        y={(a2.y + b2.y) / 2}
+        text={`${offset >= 0 ? 'out' : 'in'} ${formatLen(Math.abs(offset))}`}
+        scale={scale}
+        color={C.accent}
+        size={11}
+        bold
+        bg="rgba(14,18,26,0.85)"
+      />
     </Group>
   )
 }

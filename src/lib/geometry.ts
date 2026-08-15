@@ -1,4 +1,4 @@
-import type { Floor, ID, Opening, Pt, Room, Wall } from '../types'
+import type { Column, Floor, ID, Opening, Pt, Room, Wall } from '../types'
 
 export interface Vec {
   x: number
@@ -119,8 +119,19 @@ export function roomPerimeter(floor: Floor, room: Room, pts = pointMap(floor)): 
   return total
 }
 
-export function wallHeightOf(floor: Floor, wall: Wall): number {
-  return wall.height ?? floor.height
+/** Height of the top of a wall above the floor slab. */
+export function wallTopOf(floor: Floor, wall: Wall): number {
+  const base = wall.base ?? 0
+  return wall.height === null || wall.height === undefined ? floor.height : base + wall.height
+}
+
+export function wallBaseOf(wall: Wall): number {
+  return wall.base ?? 0
+}
+
+/** True for a wall that neither starts on the floor nor reaches the ceiling. */
+export function isPartialWall(floor: Floor, wall: Wall): boolean {
+  return wallBaseOf(wall) > 1e-6 || wallTopOf(floor, wall) < floor.height - 1e-6
 }
 
 export function findWallBetween(floor: Floor, a: ID, b: ID): Wall | undefined {
@@ -170,6 +181,21 @@ export function nearestPoint(floor: Floor, p: Vec, maxDist: number, exclude: ID[
   return best
 }
 
+/**
+ * Inserts corners into a room outline along the edge a→b, keeping the winding:
+ * the ids go in as given when the loop walks a→b, and reversed when it walks
+ * b→a. Returns the same array when the edge is not part of this loop.
+ */
+export function spliceLoopEdge(loop: ID[], a: ID, b: ID, ids: ID[]): ID[] {
+  for (let i = 0; i < loop.length; i++) {
+    const p = loop[i]
+    const q = loop[(i + 1) % loop.length]
+    if (p === a && q === b) return [...loop.slice(0, i + 1), ...ids, ...loop.slice(i + 1)]
+    if (p === b && q === a) return [...loop.slice(0, i + 1), ...[...ids].reverse(), ...loop.slice(i + 1)]
+  }
+  return loop
+}
+
 /* ------------------------------------------------------------------ */
 /* wall geometry used by both the 2D plan and the 3D build             */
 /* ------------------------------------------------------------------ */
@@ -198,12 +224,17 @@ export function wallSolids(floor: Floor, wall: Wall, pts = pointMap(floor)): Wal
   const len = dist(e.a, e.b)
   if (len < 1e-4) return []
   const angle = angleOf(e.a, e.b)
-  const height = wallHeightOf(floor, wall)
+  const base = wallBaseOf(wall)
+  const height = wallTopOf(floor, wall)
   const thickness = wall.thickness
   const out: WallSolid[] = []
+  if (height - base <= 1e-4) return []
 
   const at = (t: number) => ({ x: e.a.x + Math.cos(angle) * t, y: e.a.y + Math.sin(angle) * t })
-  const push = (from: number, to: number, bottom: number, top: number) => {
+  const push = (from: number, to: number, rawBottom: number, rawTop: number) => {
+    // a wall only ever exists between its own base and top
+    const bottom = Math.max(rawBottom, base)
+    const top = Math.min(rawTop, height)
     const l = to - from
     if (l <= 1e-4 || top - bottom <= 1e-4) return
     const c = at((from + to) / 2)
@@ -236,6 +267,22 @@ export function wallSolids(floor: Floor, wall: Wall, pts = pointMap(floor)): Wal
   return out
 }
 
+export function columnTopOf(floor: Floor, column: Column): number {
+  return column.height === null || column.height === undefined ? floor.height : column.base + column.height
+}
+
+export function columnSolid(floor: Floor, column: Column): WallSolid {
+  return {
+    cx: column.x,
+    cy: column.y,
+    len: column.w,
+    thickness: column.d,
+    bottom: column.base,
+    top: columnTopOf(floor, column),
+    angle: column.rot,
+  }
+}
+
 /** Solids that a walking person at [feet, head] would bump into. */
 export function blockingSolids(floor: Floor, feet = 0.05, head = 1.75): WallSolid[] {
   const pts = pointMap(floor)
@@ -244,6 +291,10 @@ export function blockingSolids(floor: Floor, feet = 0.05, head = 1.75): WallSoli
     for (const s of wallSolids(floor, wall, pts)) {
       if (s.top > feet && s.bottom < head) out.push(s)
     }
+  }
+  for (const column of floor.columns ?? []) {
+    const s = columnSolid(floor, column)
+    if (s.top > feet && s.bottom < head) out.push(s)
   }
   return out
 }
@@ -375,7 +426,7 @@ export function floorBounds(floor: Floor) {
     xs.push(p.x)
     ys.push(p.y)
   }
-  for (const it of floor.items) {
+  for (const it of [...floor.items, ...(floor.columns ?? [])]) {
     const r = Math.max(it.w, it.d) / 2
     xs.push(it.x - r, it.x + r)
     ys.push(it.y - r, it.y + r)

@@ -4,12 +4,13 @@ import { formatArea, roomArea } from '../lib/geometry'
 import type { Tool } from '../types'
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag corners, walls, rooms or furniture · drag empty space to pan · wheel to zoom',
+  select: 'Drag to move · Shift-drag a wall to extrude it · double-click a wall to add a corner · grips resize',
   room: 'Drag to draw a rectangular room — its size shows while you drag',
   poly: 'Click each corner · click the first one again or press Enter to close · Esc cancels',
   wall: 'Click to chain wall segments · Enter or double-click to finish · Esc cancels',
   door: 'Click a wall to drop a door, then drag it along the wall',
   window: 'Click a wall to drop a window, then set its sill height on the right',
+  column: 'Click to drop a column · set its footprint, base and height on the right',
   item: 'Click on the plan to place the selected catalogue item',
   measure: 'Click two points to measure the distance between them',
   delete: 'Click anything to delete it',

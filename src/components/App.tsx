@@ -19,6 +19,7 @@ const TOOL_KEYS: Record<string, Tool> = {
   w: 'wall',
   d: 'door',
   n: 'window',
+  k: 'column',
   i: 'item',
   m: 'measure',
   x: 'delete',

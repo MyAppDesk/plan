@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { temporal } from 'zundo'
 import { produce } from 'immer'
 import type {
+  Column,
   Floor,
   ID,
   Item,
@@ -26,6 +27,7 @@ import {
   polygonBounds,
   roomPoints,
   snapToWallFace,
+  spliceLoopEdge,
   uid,
   type Vec,
 } from '../lib/geometry'
@@ -49,6 +51,7 @@ export function emptyFloor(name: string, index = 0): Floor {
     points: [],
     walls: [],
     rooms: [],
+    columns: [],
     openings: [],
     items: [],
     measures: [],
@@ -67,7 +70,7 @@ function addWall(floor: Floor, a: ID, b: ID, thickness?: number): Wall {
   if (a === b) throw new Error('degenerate wall')
   const existing = findWallBetween(floor, a, b)
   if (existing) return existing
-  const wall: Wall = { id: uid('w'), a, b, thickness: thickness ?? floor.wallThickness, height: null }
+  const wall: Wall = { id: uid('w'), a, b, thickness: thickness ?? floor.wallThickness, base: 0, height: null }
   floor.walls.push(wall)
   return wall
 }
@@ -95,6 +98,21 @@ function addRect(floor: Floor, x: number, y: number, w: number, h: number, name?
   return addRoomFromLoop(floor, loop, name)
 }
 
+/** Finds the wall that runs between two corner positions. */
+function wallBetweenAt(floor: Floor, from: Vec, to: Vec): Wall | undefined {
+  const pts = pointMap(floor)
+  return floor.walls.find((w) => {
+    const a = pts.get(w.a)!
+    const b = pts.get(w.b)!
+    return (dist(a, from) < 0.2 && dist(b, to) < 0.2) || (dist(a, to) < 0.2 && dist(b, from) < 0.2)
+  })
+}
+
+function styleWall(floor: Floor, from: Vec, to: Vec, patch: Partial<Wall>) {
+  const wall = wallBetweenAt(floor, from, to)
+  if (wall) Object.assign(wall, patch)
+}
+
 /** Places an opening on the wall that runs between two corner positions. */
 function placeOpening(
   floor: Floor,
@@ -106,13 +124,7 @@ function placeOpening(
   extra: Partial<Opening> = {},
 ) {
   const pts = pointMap(floor)
-  const wall = floor.walls.find((w) => {
-    const a = pts.get(w.a)!
-    const b = pts.get(w.b)!
-    return (
-      (dist(a, from) < 0.2 && dist(b, to) < 0.2) || (dist(a, to) < 0.2 && dist(b, from) < 0.2)
-    )
-  })
+  const wall = wallBetweenAt(floor, from, to)
   if (!wall) return
   const a = pts.get(wall.a)!
   const flipped = dist(a, from) > 0.2
@@ -150,6 +162,25 @@ function addItem(floor: Floor, kind: string, x: number, y: number, rot = 0): Ite
   return item
 }
 
+function addColumn(floor: Floor, x: number, y: number, patch: Partial<Column> = {}): Column {
+  const column: Column = {
+    id: uid('c'),
+    name: patch.shape === 'round' ? 'Round column' : 'Column',
+    x,
+    y,
+    w: 0.3,
+    d: 0.3,
+    rot: 0,
+    base: 0,
+    height: null,
+    shape: 'rect',
+    color: '#b9c0cd',
+    ...patch,
+  }
+  floor.columns.push(column)
+  return column
+}
+
 /** A small demo flat so the app is never an empty page. */
 export function starterProject(): Project {
   const floor = emptyFloor('Ground floor')
@@ -157,12 +188,21 @@ export function starterProject(): Project {
   addRect(floor, 5.2, 0, 3.6, 4.2, 'Bedroom')
   addRect(floor, 5.2, 4.2, 3.6, 2.4, 'Bathroom')
   addRect(floor, 0, 4.2, 5.2, 2.4, 'Hallway')
+  // a terrace hanging off the living room, walled by a low parapet
+  const terrace = addRect(floor, 0, -3, 5.2, 3, 'Terrace')
+  terrace.color = '#2f4a3a'
+  for (const [from, to] of [
+    [{ x: 0, y: -3 }, { x: 5.2, y: -3 }],
+    [{ x: 5.2, y: -3 }, { x: 5.2, y: 0 }],
+    [{ x: 0, y: 0 }, { x: 0, y: -3 }],
+  ] as const)
+    styleWall(floor, from, to, { height: 1.1, thickness: 0.1 })
 
   placeOpening(floor, { x: 5.2, y: 0 }, { x: 5.2, y: 4.2 }, 'door', 3.4, 0.8)
   placeOpening(floor, { x: 5.2, y: 4.2 }, { x: 5.2, y: 6.6 }, 'door', 1.2, 0.75)
   placeOpening(floor, { x: 0, y: 4.2 }, { x: 5.2, y: 4.2 }, 'door', 3.9, 0.9)
   placeOpening(floor, { x: 0, y: 6.6 }, { x: 5.2, y: 6.6 }, 'door', 1.0, 0.9)
-  placeOpening(floor, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'window', 2.6, 1.8)
+  placeOpening(floor, { x: 0, y: 0 }, { x: 5.2, y: 0 }, 'door', 2.6, 1.8, { height: 2.2 })
   placeOpening(floor, { x: 5.2, y: 0 }, { x: 8.8, y: 0 }, 'window', 1.8, 1.2)
   placeOpening(floor, { x: 8.8, y: 4.2 }, { x: 8.8, y: 6.6 }, 'window', 1.2, 0.6, { height: 0.8, sill: 1.4 })
 
@@ -178,6 +218,20 @@ export function starterProject(): Project {
   addItem(floor, 'toilet', 8.3, 5.0, Math.PI / 2)
   addItem(floor, 'basin', 6.9, 4.6)
   addItem(floor, 'shower', 5.8, 6.0)
+  addItem(floor, 'dining-table', 2.6, -1.6).w = 1.1
+  addItem(floor, 'chair', 2.6, -0.75)
+  addItem(floor, 'chair', 2.6, -2.45, Math.PI)
+  addItem(floor, 'plant', 4.7, -2.5)
+
+  // two round columns holding the slab over the terrace, and a beam over the
+  // opening between the living room and the hallway
+  addColumn(floor, 0.45, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
+  addColumn(floor, 4.75, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
+  addColumn(floor, 8.55, 4.5, { w: 0.35, d: 0.35, name: 'Service duct' })
+
+  // a beam crossing the living room: hangs from the ceiling, you walk under it
+  const beam = addWall(floor, addPoint(floor, 0, 2.3), addPoint(floor, 5.2, 2.3), 0.25)
+  beam.base = 2.25
 
   return { version: 2, name: 'My place', floors: [floor] }
 }
@@ -230,6 +284,8 @@ export interface ProjectState extends UiState {
   createWallPath: (pts: Vec[]) => void
   createOpening: (wallId: ID, kind: OpeningKind, offset: number) => void
   createItem: (kind: string, x: number, y: number) => void
+  createColumn: (x: number, y: number) => void
+  updateColumn: (id: ID, patch: Partial<Column>) => void
   createMeasure: (a: Vec, b: Vec) => void
 
   /* editing */
@@ -238,6 +294,7 @@ export interface ProjectState extends UiState {
   resizeRoom: (id: ID, w: number, h: number) => void
   setRoomBounds: (id: ID, box: { minX: number; minY: number; maxX: number; maxY: number }) => void
   splitWall: (id: ID, at: Vec) => void
+  extrudeWall: (id: ID, offset: number) => void
   setWallLength: (id: ID, length: number) => void
   updateWall: (id: ID, patch: Partial<Wall>) => void
   updateRoom: (id: ID, patch: Partial<Room>) => void
@@ -275,7 +332,18 @@ export function normalizeProject(p: Project): Project {
       ...emptyFloor(f.name ?? `Floor ${i + 1}`, i),
       ...f,
       points: f.points ?? [],
-      walls: (f.walls ?? []).map((w) => ({ ...w, thickness: w.thickness ?? 0.12, height: w.height ?? null })),
+      walls: (f.walls ?? []).map((w) => ({
+        ...w,
+        thickness: w.thickness ?? 0.12,
+        base: w.base ?? 0,
+        height: w.height ?? null,
+      })),
+      columns: (f.columns ?? []).map((c) => ({
+        ...c,
+        base: c.base ?? 0,
+        height: c.height ?? null,
+        shape: c.shape ?? 'rect',
+      })),
       rooms: (f.rooms ?? []).map((r) => ({ ...r, height: r.height ?? null })),
       openings: (f.openings ?? []).map((o) => ({ ...o, flipSide: !!o.flipSide, flipHinge: !!o.flipHinge })),
       items: (f.items ?? []).map((it) => ({ ...it, z: it.z ?? 0 })),
@@ -451,6 +519,26 @@ export const useProject = create<ProjectState>()(
             state.selection = { kind: 'item', id: item.id }
           }),
 
+        createColumn: (x, y) =>
+          withFloor((floor, state) => {
+            const column = addColumn(floor, x, y)
+            if (state.snapWalls) {
+              const placed = snapToWallFace(floor, { x, y, w: column.w, d: column.d, rot: 0 })
+              if (placed) {
+                column.x = placed.x
+                column.y = placed.y
+                column.rot = placed.rot
+              }
+            }
+            state.selection = { kind: 'column', id: column.id }
+          }),
+
+        updateColumn: (id, patch) =>
+          withFloor((floor) => {
+            const c = floor.columns.find((x) => x.id === id)
+            if (c) Object.assign(c, patch)
+          }),
+
         createMeasure: (a, b) =>
           withFloor((floor) => {
             floor.measures.push({ id: uid('m'), ax: a.x, ay: a.y, bx: b.x, by: b.y })
@@ -570,18 +658,40 @@ export const useProject = create<ProjectState>()(
               }
             }
 
-            for (const room of floor.rooms) {
-              for (let i = 0; i < room.loop.length; i++) {
-                const p = room.loop[i]
-                const q = room.loop[(i + 1) % room.loop.length]
-                if ((p === wall.a && q === wall.b) || (p === wall.b && q === wall.a)) {
-                  room.loop.splice(i + 1, 0, mid.id)
-                  break
-                }
-              }
-            }
+            for (const room of floor.rooms) room.loop = spliceLoopEdge(room.loop, wall.a, wall.b, [mid.id])
 
             state.selection = { kind: 'point', id: mid.id }
+          }),
+
+        /** Pushes a wall out (or in) along its normal, leaving a U of three walls. */
+        extrudeWall: (id, offset) =>
+          withFloor((floor, state) => {
+            if (Math.abs(offset) < 0.02) return
+            const wall = floor.walls.find((w) => w.id === id)
+            if (!wall) return
+            const pts = pointMap(floor)
+            const a = pts.get(wall.a)
+            const b = pts.get(wall.b)
+            if (!a || !b) return
+            const ang = angleOf(a, b)
+            const n = { x: -Math.sin(ang), y: Math.cos(ang) }
+
+            const a2 = { id: uid('p'), x: a.x + n.x * offset, y: a.y + n.y * offset }
+            const b2 = { id: uid('p'), x: b.x + n.x * offset, y: b.y + n.y * offset }
+            floor.points.push(a2, b2)
+
+            const side1: Wall = { ...wall, id: uid('w'), a: wall.a, b: a2.id }
+            const face: Wall = { ...wall, id: uid('w'), a: a2.id, b: b2.id }
+            const side2: Wall = { ...wall, id: uid('w'), a: b2.id, b: wall.b }
+            floor.walls = floor.walls.filter((w) => w.id !== wall.id)
+            floor.walls.push(side1, face, side2)
+
+            // openings travel with the face, which keeps the same direction
+            for (const o of floor.openings) if (o.wallId === wall.id) o.wallId = face.id
+
+            for (const room of floor.rooms) room.loop = spliceLoopEdge(room.loop, wall.a, wall.b, [a2.id, b2.id])
+
+            state.selection = { kind: 'wall', id: face.id }
           }),
 
         setWallLength: (id, length) =>
@@ -639,6 +749,7 @@ export const useProject = create<ProjectState>()(
         remove: (sel) =>
           withFloor((floor, state) => {
             if (sel.kind === 'item') floor.items = floor.items.filter((i) => i.id !== sel.id)
+            if (sel.kind === 'column') floor.columns = floor.columns.filter((c) => c.id !== sel.id)
             if (sel.kind === 'measure') floor.measures = floor.measures.filter((m) => m.id !== sel.id)
             if (sel.kind === 'opening') floor.openings = floor.openings.filter((o) => o.id !== sel.id)
             if (sel.kind === 'wall') {
@@ -688,6 +799,13 @@ export const useProject = create<ProjectState>()(
               const copy = { ...it, id: uid('i'), x: it.x + 0.3, y: it.y + 0.3 }
               floor.items.push(copy)
               state.selection = { kind: 'item', id: copy.id }
+            }
+            if (sel.kind === 'column') {
+              const c = floor.columns.find((x) => x.id === sel.id)
+              if (!c) return
+              const copy = { ...c, id: uid('c'), x: c.x + 0.4, y: c.y + 0.4 }
+              floor.columns.push(copy)
+              state.selection = { kind: 'column', id: copy.id }
             }
             if (sel.kind === 'room') {
               const room = floor.rooms.find((r) => r.id === sel.id)

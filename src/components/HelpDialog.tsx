@@ -27,6 +27,7 @@ const SECTIONS = [
     rows: [
       ['D', 'Door: click a wall, then drag it along the wall'],
       ['N', 'Window: same, with an editable sill height'],
+      ['K', 'Column or pier: square or round, with its own footprint, base and height'],
       ['I', 'Place the item selected in the Catalog tab'],
       ['M', 'Tape measure between any two points'],
     ],
@@ -34,9 +35,11 @@ const SECTIONS = [
   {
     title: 'Walls',
     rows: [
-      ['—', 'Each wall has its own thickness and height'],
-      ['—', 'Give a wall a low height for a terrace parapet, a half wall or a kerb'],
-      ['—', 'Low walls are drawn dashed on the plan with their height beside the length'],
+      ['Shift', 'Shift-drag a wall face to extrude it — columns, recesses, bay windows'],
+      ['—', 'Each wall has its own thickness, base height and height'],
+      ['—', 'Low walls: a terrace parapet, a half wall or a kerb — drawn dashed'],
+      ['—', 'Raise the base to hang a beam or boxing from the ceiling — drawn dotted, and you walk under it'],
+      ['—', 'Columns can also start off the floor, for boxing over a duct'],
       ['—', 'Furniture stops at the face of a wall, never inside it (H toggles this)'],
     ],
   },

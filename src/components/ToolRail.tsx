@@ -3,6 +3,7 @@ import {
   DoorOpen,
   Eraser,
   Minus,
+  Columns3,
   MousePointer2,
   PenTool,
   Ruler,
@@ -19,12 +20,13 @@ const TOOLS: { value: Tool; icon: typeof Ruler; label: string; key: string }[] =
   { value: 'wall', icon: Minus, label: 'Single wall', key: 'W' },
   { value: 'door', icon: DoorOpen, label: 'Door', key: 'D' },
   { value: 'window', icon: AppWindow, label: 'Window', key: 'N' },
+  { value: 'column', icon: Columns3, label: 'Column / pier', key: 'K' },
   { value: 'item', icon: Sofa, label: 'Place furniture', key: 'I' },
   { value: 'measure', icon: Ruler, label: 'Tape measure', key: 'M' },
   { value: 'delete', icon: Eraser, label: 'Delete', key: 'X' },
 ]
 
-const SEPARATE_AFTER: Tool[] = ['wall', 'window', 'measure']
+const SEPARATE_AFTER: Tool[] = ['wall', 'item', 'measure']
 
 export function ToolRail() {
   const tool = useProject((s) => s.tool)

@@ -1,4 +1,4 @@
-import { DoorOpen, AppWindow, Sofa, Square, Ruler } from 'lucide-react'
+import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3 } from 'lucide-react'
 import { useActiveFloor, useProject } from '../../store/useProject'
 import { formatArea, formatLen, roomArea, wallLength, dist } from '../../lib/geometry'
 import { Section } from '../ui/fields'
@@ -44,6 +44,23 @@ export function OutlinePanel() {
             <span className="flex-1 truncate capitalize">{o.kind}</span>
             <span className="tabular-nums text-mist-400">
               {formatLen(o.width)} × {formatLen(o.height)}
+            </span>
+          </button>
+        ))}
+      </Section>
+
+      <Section title={`Columns — ${(floor.columns ?? []).length}`}>
+        {(floor.columns ?? []).length === 0 ? <Empty text="No columns yet. Press K and click on the plan." /> : null}
+        {(floor.columns ?? []).map((c) => (
+          <button
+            key={c.id}
+            className={rowClass(selection?.kind === 'column' && selection.id === c.id)}
+            onClick={() => select({ kind: 'column', id: c.id })}
+          >
+            <Columns3 size={14} className="shrink-0 text-mist-400" />
+            <span className="flex-1 truncate">{c.name}</span>
+            <span className="tabular-nums text-mist-400">
+              {c.shape === 'round' ? `⌀ ${formatLen(c.w)}` : `${c.w.toFixed(2)}×${c.d.toFixed(2)}`}
             </span>
           </button>
         ))}
