@@ -16,6 +16,7 @@ import type {
   ViewMode,
   Wall,
 } from '../types'
+import type { Basis } from '../lib/measure'
 import {
   addColumn,
   addItem,
@@ -64,6 +65,8 @@ export interface UiState {
   showFurniture: boolean
   showCeiling: boolean
   showAllFloors: boolean
+  /** where every figure is measured from: inside the walls, their middle, or outside */
+  dimBasis: Basis
   catalogKind: string
   message: string | null
 }
@@ -81,6 +84,7 @@ export interface ProjectState extends UiState {
     key: 'snap' | 'snapWalls' | 'showGrid' | 'showDims' | 'showFurniture' | 'showCeiling' | 'showAllFloors',
   ) => void
   setGridSize: (v: number) => void
+  setDimBasis: (b: Basis) => void
   setCatalogKind: (k: string) => void
   flash: (msg: string | null) => void
 
@@ -248,6 +252,7 @@ export const useProject = create<ProjectState>()(
         showFurniture: true,
         showCeiling: false,
         showAllFloors: false,
+        dimBasis: 'inner',
         catalogKind: 'bed-double',
         message: null,
 
@@ -257,6 +262,7 @@ export const useProject = create<ProjectState>()(
         select: (selection) => set({ selection }),
         toggleUi: (key) => set({ [key]: !get()[key] } as Partial<ProjectState>),
         setGridSize: (gridSize) => set({ gridSize }),
+        setDimBasis: (dimBasis) => set({ dimBasis }),
         setCatalogKind: (catalogKind) => set({ catalogKind, tool: 'item' }),
         flash: (message) => set({ message }),
 

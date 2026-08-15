@@ -1,13 +1,15 @@
 import { DoorOpen, AppWindow, Sofa, Square, Ruler, Columns3, Sun, Wand2, Brush } from 'lucide-react'
 import { useActiveFloor, useProject } from '../../store/useProject'
-import { formatArea, formatLen, roomArea, wallLength, dist } from '../../lib/geometry'
+import { formatArea, formatLen, dist } from '../../lib/geometry'
+import { floorAreaOn, roomAreaOn, wallLengthOn } from '../../lib/measure'
 import { Section } from '../ui/fields'
 
 export function OutlinePanel() {
   const floor = useActiveFloor()
   const selection = useProject((s) => s.selection)
   const select = useProject((s) => s.select)
-  const total = floor.rooms.reduce((sum, r) => sum + roomArea(floor, r), 0)
+  const basis = useProject((s) => s.dimBasis)
+  const total = floorAreaOn(floor, basis)
 
   const rowClass = (active: boolean) =>
     `flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors ${
@@ -49,7 +51,7 @@ export function OutlinePanel() {
               <Square size={14} className="shrink-0 text-mist-400" />
             )}
             <span className="flex-1 truncate">{r.name}</span>
-            <span className="tabular-nums text-mist-400">{formatArea(roomArea(floor, r))}</span>
+            <span className="tabular-nums text-mist-400">{formatArea(roomAreaOn(floor, r, basis))}</span>
           </button>
         ))}
       </Section>
@@ -115,7 +117,7 @@ export function OutlinePanel() {
             <span className="h-3 w-3 shrink-0 rounded-sm bg-mist-300" />
             <span className="flex-1 truncate">Wall</span>
             <span className="tabular-nums text-mist-400">
-              {formatLen(wallLength(floor, w))} · {Math.round(w.thickness * 100)} cm
+              {formatLen(wallLengthOn(floor, w, basis))} · {Math.round(w.thickness * 100)} cm
             </span>
           </button>
         ))}

@@ -17,10 +17,13 @@ import {
   snapToWallFace,
   wallBaseOf,
   wallTopOf,
-  roomArea,
   roomPoints,
   wallEnds,
+  wallFaces,
+  wallOutline,
 } from '../../lib/geometry'
+import type { Basis } from '../../lib/measure'
+import { roomAreaOn, roomBoundsOn, roomOutline, wallLengthOn } from '../../lib/measure'
 
 export const C = {
   wall: '#c9d2e2',
@@ -238,6 +241,7 @@ export function RoomShape({
   selected,
   scale,
   showDims,
+  basis,
   onDown,
   onDblClick,
 }: {
@@ -246,6 +250,7 @@ export function RoomShape({
   selected: boolean
   scale: number
   showDims: boolean
+  basis: Basis
   onDown: (e: KonvaEventObject<MouseEvent>) => void
   onDblClick?: (e: KonvaEventObject<MouseEvent>) => void
 }) {
@@ -253,7 +258,9 @@ export function RoomShape({
   if (pts.length < 3) return null
   const flat = pts.flatMap((p) => [p.x, p.y])
   const c = polygonCentroid(pts)
-  const area = roomArea(floor, room)
+  const area = roomAreaOn(floor, room, basis)
+  // the line the figures are actually taken along, so you can see what is measured
+  const face = basis === 'centre' ? null : roomOutline(floor, room, basis).flatMap((p) => [p.x, p.y])
   return (
     <Group>
       <Line
@@ -268,6 +275,17 @@ export function RoomShape({
         onDblClick={onDblClick}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
+      {selected && face ? (
+        <Line
+          points={face}
+          closed
+          stroke={C.accent}
+          strokeWidth={1}
+          dash={[0.16, 0.12]}
+          strokeScaleEnabled={false}
+          listening={false}
+        />
+      ) : null}
       {showDims ? (
         <>
           <Label x={c.x} y={c.y - 0.16} text={room.name} scale={scale} color="#e3e8f2" size={12} bold />
@@ -296,9 +314,10 @@ export function WallShape({
   hovered,
   scale,
   showDims,
+  basis,
   onDown,
   onDblClick,
-  onEditLength,
+  onEditFace,
 }: {
   floor: Floor
   wall: Wall
@@ -306,13 +325,15 @@ export function WallShape({
   hovered: boolean
   scale: number
   showDims: boolean
+  basis: Basis
   onDown: (e: KonvaEventObject<MouseEvent>) => void
   onDblClick?: (e: KonvaEventObject<MouseEvent>) => void
-  onEditLength?: (e: KonvaEventObject<MouseEvent>) => void
+  onEditFace?: (face: 'left' | 'right') => (e: KonvaEventObject<MouseEvent>) => void
 }) {
   const e = wallEnds(floor, wall)
   if (!e) return null
-  const len = dist(e.a, e.b)
+  const span = dist(e.a, e.b)
+  const len = wallLengthOn(floor, wall, basis)
   const base = wallBaseOf(wall)
   const top = wallTopOf(floor, wall)
   const overhead = base > 1e-6
@@ -326,44 +347,58 @@ export function WallShape({
   const off = wall.thickness / 2 + 0.14
   const nx = Math.sin(ang) * (flip ? off : -off)
   const ny = -Math.cos(ang) * (flip ? off : -off)
+  // the wall as it is really built: mitred into whatever it runs into
+  const outline = open ? [] : wallOutline(floor, wall)
+  const faces = wallFaces(floor, wall)
+  const color = selected
+    ? C.wallSelected
+    : hovered
+      ? C.wallHover
+      : style === 'hedge'
+        ? C.hedge
+        : open
+          ? C.fence
+          : overhead
+            ? C.wallOverhead
+            : low
+              ? C.wallLow
+              : C.wall
 
   return (
     <Group>
-      <Line
-        points={[e.a.x, e.a.y, e.b.x, e.b.y]}
-        stroke={
-          selected
-            ? C.wallSelected
-            : hovered
-              ? C.wallHover
-              : style === 'hedge'
-                ? C.hedge
-                : open
-                  ? C.fence
-                  : overhead
-                    ? C.wallOverhead
-                    : low
-                      ? C.wallLow
-                      : C.wall
-        }
-        strokeWidth={Math.max(wall.thickness, open ? 0.06 : 0)}
-        lineCap="butt"
-        dash={style === 'fence' ? [0.28, 0.14] : style === 'railing' ? [0.14, 0.1] : overhead ? [0.1, 0.12] : low ? [0.32, 0.16] : undefined}
-        hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
-        onMouseDown={onDown}
-        onDblClick={onDblClick}
-        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
-      />
-      {selected && onEditLength ? (
-        <DimLabel
-          x={mid.x + nx}
-          y={mid.y + ny}
-          rotation={flip ? deg + 180 : deg}
-          text={formatLen(len)}
-          scale={scale}
-          onClick={onEditLength}
+      {outline.length === 4 ? (
+        <Line
+          points={outline.flatMap((p) => [p.x, p.y])}
+          closed
+          fill={overhead || low ? `${color}55` : color}
+          stroke={overhead || low ? color : undefined}
+          strokeWidth={1}
+          strokeScaleEnabled={false}
+          dash={overhead ? [4, 5] : low ? [10, 6] : undefined}
+          hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
+          onMouseDown={onDown}
+          onDblClick={onDblClick}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
         />
-      ) : showDims && len > 0.35 ? (
+      ) : (
+        <Line
+          points={[e.a.x, e.a.y, e.b.x, e.b.y]}
+          stroke={color}
+          strokeWidth={Math.max(wall.thickness, open ? 0.06 : 0)}
+          lineCap="butt"
+          dash={style === 'fence' ? [0.28, 0.14] : style === 'railing' ? [0.14, 0.1] : undefined}
+          hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
+          onMouseDown={onDown}
+          onDblClick={onDblClick}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      )}
+      {selected && faces && onEditFace ? (
+        <>
+          <FaceDimension from={faces.left[0]} to={faces.left[1]} scale={scale} onClick={onEditFace('left')} />
+          <FaceDimension from={faces.right[0]} to={faces.right[1]} scale={scale} flip onClick={onEditFace('right')} />
+        </>
+      ) : showDims && span > 0.35 ? (
         <Label
           x={mid.x + nx}
           y={mid.y + ny}
@@ -382,6 +417,62 @@ export function WallShape({
           size={10.5}
         />
       ) : null}
+    </Group>
+  )
+}
+
+/**
+ * A dimension line run along one face of a wall, from corner to corner, with
+ * witness lines back to the face itself — so the inside and the outside of the
+ * same wall each get their own figure.
+ */
+function FaceDimension({
+  from,
+  to,
+  scale,
+  flip,
+  onClick,
+}: {
+  from: { x: number; y: number }
+  to: { x: number; y: number }
+  scale: number
+  flip?: boolean
+  onClick?: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const len = dist(from, to)
+  if (len < 1e-3) return null
+  const ang = angleOf(from, to)
+  const s = flip ? -1 : 1
+  // outwards, away from the body of the wall
+  const n = { x: -Math.sin(ang) * s, y: Math.cos(ang) * s }
+  const gap = 20 / scale
+  const tick = 5 / scale
+  const at = (p: { x: number; y: number }, d: number) => ({ x: p.x + n.x * d, y: p.y + n.y * d })
+  const p0 = at(from, gap)
+  const p1 = at(to, gap)
+  const deg = (ang * 180) / Math.PI
+  const upside = deg > 90 || deg < -90
+  const line = (points: number[]) => (
+    <Line points={points} stroke={C.accent} strokeWidth={1} strokeScaleEnabled={false} listening={false} />
+  )
+  const witness = (p: { x: number; y: number }) => {
+    const a = at(p, gap * 0.2)
+    const b = at(p, gap + tick)
+    return line([a.x, a.y, b.x, b.y])
+  }
+  return (
+    <Group>
+      {line([p0.x, p0.y, p1.x, p1.y])}
+      {witness(from)}
+      {witness(to)}
+      <DimLabel
+        x={(p0.x + p1.x) / 2}
+        y={(p0.y + p1.y) / 2}
+        rotation={upside ? deg + 180 : deg}
+        text={formatLen(len)}
+        scale={scale}
+        onClick={onClick}
+      />
     </Group>
   )
 }
@@ -871,6 +962,7 @@ export function SelectionGrips({
   floor,
   selection,
   scale,
+  basis,
   onItemResize,
   onRoomResize,
   onColumnResize,
@@ -879,6 +971,7 @@ export function SelectionGrips({
   floor: Floor
   selection: Selection | null
   scale: number
+  basis: Basis
   onItemResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
   onRoomResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
   onColumnResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
@@ -926,17 +1019,23 @@ export function SelectionGrips({
     const pts = roomPoints(floor, room)
     if (pts.length < 3) return null
     const b = polygonBounds(pts)
+    // handles drag the centrelines the model stores; the figures quote the measured faces
+    const m = roomBoundsOn(floor, room, basis)
     return (
-      <Group x={(b.minX + b.maxX) / 2} y={(b.minY + b.maxY) / 2}>
-        <ResizeHandles hw={(b.maxX - b.minX) / 2} hd={(b.maxY - b.minY) / 2} scale={scale} onDown={onRoomResize(room.id)} />
-        <DimensionBox
-          hw={(b.maxX - b.minX) / 2}
-          hd={(b.maxY - b.minY) / 2}
-          scale={scale}
-          onEditW={onEditSize?.('w')}
-          onEditD={onEditSize?.('d')}
-        />
-      </Group>
+      <>
+        <Group x={(b.minX + b.maxX) / 2} y={(b.minY + b.maxY) / 2}>
+          <ResizeHandles hw={(b.maxX - b.minX) / 2} hd={(b.maxY - b.minY) / 2} scale={scale} onDown={onRoomResize(room.id)} />
+        </Group>
+        <Group x={(m.minX + m.maxX) / 2} y={(m.minY + m.maxY) / 2}>
+          <DimensionBox
+            hw={(m.maxX - m.minX) / 2}
+            hd={(m.maxY - m.minY) / 2}
+            scale={scale}
+            onEditW={onEditSize?.('w')}
+            onEditD={onEditSize?.('d')}
+          />
+        </Group>
+      </>
     )
   }
 

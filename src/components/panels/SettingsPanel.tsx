@@ -2,7 +2,14 @@ import { Layers, Trash2 } from 'lucide-react'
 import { useProject } from '../../store/useProject'
 import { useLibrary } from '../../store/useLibrary'
 import { polygonArea } from '../../lib/geometry'
+import type { Basis } from '../../lib/measure'
 import { NumberField, SegButtons, Section, Select, TextField, Toggle } from '../ui/fields'
+
+const BASIS_SEG = [
+  { value: 'inner', label: 'Interior' },
+  { value: 'centre', label: 'Centre' },
+  { value: 'outer', label: 'Exterior' },
+]
 
 const GRIDS = [
   { value: '0.05', label: '5 cm' },
@@ -42,6 +49,25 @@ export function SettingsPanel() {
         </p>
         <Toggle label="Show grid" checked={s.showGrid} onChange={() => s.toggleUi('showGrid')} />
         <Toggle label="Show dimensions & labels" checked={s.showDims} onChange={() => s.toggleUi('showDims')} />
+      </Section>
+
+      <Section title="Measurements">
+        <div>
+          <span className="field-label">Measured from</span>
+          <SegButtons
+            value={s.dimBasis}
+            options={BASIS_SEG}
+            onChange={(v) => s.setDimBasis(v as Basis)}
+          />
+        </div>
+        <p className="px-1 text-[11px] leading-relaxed text-mist-400">
+          {s.dimBasis === 'inner'
+            ? 'Interior — face to face inside the room, what a tape measure gives you. Areas are the usable floor.'
+            : s.dimBasis === 'outer'
+              ? 'Exterior — over the outside faces of the walls, the footprint the building takes up.'
+              : 'Centreline — down the middle of the walls, the way the plan is stored. Half a wall on every side is counted in.'}{' '}
+          Typing a figure on the plan sets it on this basis; the properties panel always lists all three.
+        </p>
       </Section>
 
       <Section title="Preview">

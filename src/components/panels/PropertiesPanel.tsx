@@ -12,9 +12,20 @@ import {
   roomArea,
   roomPerimeter,
   roomPoints,
+  wallBaseOf,
   wallEnds,
   wallLength,
+  wallTopOf,
 } from '../../lib/geometry'
+import {
+  BASIS_LABEL,
+  centreLengthFrom,
+  roomAreaOn,
+  roomBoundsOn,
+  roomPerimeterOn,
+  wallLengthOn,
+  wallLengths,
+} from '../../lib/measure'
 import { isStair, stairLayout } from '../../lib/stairs'
 import { ColorPicker, NumberField, Row, SegButtons, Section, Select, TextField, Toggle } from '../ui/fields'
 
@@ -55,6 +66,7 @@ const ITEM_COLORS = ['#8b6a45', '#9a7f5f', '#5d6778', '#6f7c93', '#4c7a4c', '#cf
 export function PropertiesPanel() {
   const floor = useActiveFloor()
   const selection = useProject((s) => s.selection)
+  const basis = useProject((s) => s.dimBasis)
   const st = useProject
 
   if (!selection) return <FloorProps />
@@ -64,8 +76,13 @@ export function PropertiesPanel() {
     if (!room) return <FloorProps />
     const pts = roomPoints(floor, room)
     const b = polygonBounds(pts)
-    const w = b.maxX - b.minX
-    const h = b.maxY - b.minY
+    const m = roomBoundsOn(floor, room, basis)
+    // the fields read and write on the chosen basis; the model keeps centrelines
+    const padW = b.maxX - b.minX - (m.maxX - m.minX)
+    const padD = b.maxY - b.minY - (m.maxY - m.minY)
+    const w = m.maxX - m.minX
+    const h = m.maxY - m.minY
+    const height = room.height ?? floor.height
     const rect = pts.length === 4
     return (
       <>
@@ -73,18 +90,18 @@ export function PropertiesPanel() {
           <TextField label="Name" value={room.name} onChange={(name) => st.getState().updateRoom(room.id, { name })} />
           <Row>
             <NumberField
-              label="Width"
+              label={`Width (${BASIS_LABEL[basis]})`}
               value={w}
               step={0.1}
               min={0.3}
-              onChange={(v) => st.getState().resizeRoom(room.id, v, h)}
+              onChange={(v) => st.getState().resizeRoom(room.id, Math.max(0.2, v + padW), h + padD)}
             />
             <NumberField
-              label="Depth"
+              label={`Depth (${BASIS_LABEL[basis]})`}
               value={h}
               step={0.1}
               min={0.3}
-              onChange={(v) => st.getState().resizeRoom(room.id, w, v)}
+              onChange={(v) => st.getState().resizeRoom(room.id, w + padW, Math.max(0.2, v + padD))}
             />
           </Row>
           {!rect ? <p className="text-[11px] text-mist-400">Width and depth scale the whole outline of this {pts.length}-sided room.</p> : null}
@@ -114,11 +131,18 @@ export function PropertiesPanel() {
           </p>
         </Section>
         <Section title="Measurements">
-          <Stat label="Floor area" value={formatArea(roomArea(floor, room))} />
-          <Stat label="Perimeter" value={formatLen(roomPerimeter(floor, room))} />
-          <Stat label="Wall area" value={formatArea(roomPerimeter(floor, room) * (room.height ?? floor.height))} />
-          <Stat label="Volume" value={`${(roomArea(floor, room) * (room.height ?? floor.height)).toFixed(2)} m³`} />
+          <Stat label="Floor area — interior" value={formatArea(roomAreaOn(floor, room, 'inner'))} strong={basis === 'inner'} />
+          <Stat label="Floor area — centreline" value={formatArea(roomArea(floor, room))} strong={basis === 'centre'} />
+          <Stat label="Floor area — exterior" value={formatArea(roomAreaOn(floor, room, 'outer'))} strong={basis === 'outer'} />
+          <Stat label="Perimeter — interior" value={formatLen(roomPerimeterOn(floor, room, 'inner'))} />
+          <Stat label="Perimeter — centreline" value={formatLen(roomPerimeter(floor, room))} />
+          <Stat label="Wall area to paint" value={formatArea(roomPerimeterOn(floor, room, 'inner') * height)} />
+          <Stat label="Volume" value={`${(roomAreaOn(floor, room, 'inner') * height).toFixed(2)} m³`} />
           <Stat label="Corners" value={String(pts.length)} />
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            Interior is face to face inside the walls — the floor you can actually stand on and the figure a tape
+            measure gives you. Exterior runs over the outside faces. Change which one the plan shows in Settings.
+          </p>
         </Section>
         <Actions
           onDuplicate={() => st.getState().duplicate(selection)}
@@ -131,14 +155,21 @@ export function PropertiesPanel() {
   if (selection.kind === 'wall') {
     const wall = floor.walls.find((w) => w.id === selection.id)
     if (!wall) return <FloorProps />
-    const len = wallLength(floor, wall)
+    const len = wallLengthOn(floor, wall, basis)
+    const runs = wallLengths(floor, wall)
     const ends = wallEnds(floor, wall)
     const angle = ends ? (Math.atan2(ends.b.y - ends.a.y, ends.b.x - ends.a.x) * 180) / Math.PI : 0
     const openings = floor.openings.filter((o) => o.wallId === wall.id)
     return (
       <>
         <Section title="Wall">
-          <NumberField label="Length" value={len} step={0.1} min={0.1} onChange={(v) => st.getState().setWallLength(wall.id, v)} />
+          <NumberField
+            label={`Length (${BASIS_LABEL[basis]})`}
+            value={len}
+            step={0.1}
+            min={0.1}
+            onChange={(v) => st.getState().setWallLength(wall.id, centreLengthFrom(floor, wall, basis, v))}
+          />
           <NumberField
             label="Thickness"
             value={wall.thickness}
@@ -232,8 +263,17 @@ export function PropertiesPanel() {
             <Split size={14} /> Add a corner in the middle
           </button>
           <p className="text-[11px] text-mist-400">Tip: double-click anywhere on a wall to drop a corner there.</p>
+          <Stat label="Inside face" value={formatLen(runs.inner)} strong={basis === 'inner'} />
+          <Stat label="Centreline" value={formatLen(runs.centre)} strong={basis === 'centre'} />
+          <Stat label="Outside face" value={formatLen(runs.outer)} strong={basis === 'outer'} />
+          <Stat label="Face area (one side)" value={formatArea(runs.inner * (wallTopOf(floor, wall) - wallBaseOf(wall)))} />
           <Stat label="Angle" value={`${angle.toFixed(1)}°`} />
           <Stat label="Openings" value={String(openings.length)} />
+          <p className="text-[11px] leading-relaxed text-mist-400">
+            Each face has its own length. At a corner the inside face is cut back and the outside one carries on
+            past the centreline; a partition that dies into a wall at both ends is shorter than its centreline on
+            both faces. Select the wall to see both figures on the plan.
+          </p>
         </Section>
         {openings.length ? (
           <Section title="Openings on this wall">
@@ -857,11 +897,12 @@ function FloorProps() {
   )
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+/** `strong` marks the figure the plan is currently drawn with. */
+function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
     <div className="flex items-center justify-between border-b border-ink-800 py-1 last:border-0">
-      <span className="text-mist-400">{label}</span>
-      <span className="font-medium tabular-nums text-mist-200">{value}</span>
+      <span className={strong ? 'text-mist-300' : 'text-mist-400'}>{label}</span>
+      <span className={`font-medium tabular-nums ${strong ? 'text-accent' : 'text-mist-200'}`}>{value}</span>
     </div>
   )
 }

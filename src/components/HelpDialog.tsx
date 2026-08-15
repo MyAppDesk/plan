@@ -17,6 +17,7 @@ const SECTIONS = [
       ['V', 'Select and drag corners, walls, rooms, openings and furniture'],
       ['—', 'Drag the eight grips around a room or a piece of furniture to resize it'],
       ['—', 'The selection is dimensioned — click a figure to type an exact size'],
+      ['—', 'Figures are interior (face to face) by default — Settings → Measurements switches to centreline or exterior'],
       ['2×', 'Double-click a room to rename it right on the plan'],
       ['—', 'The right panel edits exact lengths, thicknesses, heights and sizes'],
       ['—', 'Changing a wall length moves its far corner along the wall'],
@@ -41,8 +42,9 @@ const SECTIONS = [
   {
     title: 'Walls',
     rows: [
-      ['Shift', 'Shift-drag a wall face to extrude it — columns, recesses, bay windows'],
+      ['Alt', 'Alt-drag a wall face to extrude it — columns, recesses, bay windows'],
       ['—', 'Each wall has its own thickness, base height and height'],
+      ['—', 'A wall quotes three lengths: the clear run between the walls it meets, the centreline, and over the outside corners'],
       ['—', 'Low walls: a terrace parapet, a half wall or a kerb — drawn dashed'],
       ['—', 'Raise the base to hang a beam or boxing from the ceiling — drawn dotted, and you walk under it'],
       ['—', 'Columns can also start off the floor, for boxing over a duct'],
@@ -76,7 +78,7 @@ const SECTIONS = [
       ['F', 'Zoom to fit'],
       ['G', 'Toggle grid snapping'],
       ['H', 'Toggle furniture snapping against wall faces'],
-      ['Shift', 'While drawing: constrain to horizontal / vertical'],
+      ['Shift', 'Keeps things straight: horizontal / vertical while drawing, and dead on one axis while dragging a corner, a wall, a room or a piece of furniture'],
       ['Space', 'Hold and drag to pan with any tool'],
     ],
   },

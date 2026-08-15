@@ -1,10 +1,11 @@
 import { useActiveFloor, useProject } from '../store/useProject'
 import { useCursor } from '../store/useCursor'
-import { formatArea, roomArea } from '../lib/geometry'
+import { formatArea } from '../lib/geometry'
+import { BASIS_LABEL, floorAreaOn } from '../lib/measure'
 import type { Tool } from '../types'
 
 const HINTS: Record<Tool, string> = {
-  select: 'Drag to move · double-click a room to rename it · click a dimension figure to type an exact size',
+  select: 'Drag to move (Shift keeps it straight) · Alt-drag a wall face to extrude · click a dimension figure to type an exact size',
   room: 'Drag to draw a rectangular room — its size shows while you drag',
   poly: 'Click each corner · click the first one again or press Enter to close · Esc cancels',
   wall: 'Click to chain walls · Enter to finish · close a space and it becomes a room you can rename',
@@ -29,7 +30,8 @@ export function StatusBar() {
   const y = useCursor((s) => s.y)
   const scale = useCursor((s) => s.scale)
 
-  const total = floor.rooms.reduce((sum, r) => sum + roomArea(floor, r), 0)
+  const basis = useProject((s) => s.dimBasis)
+  const total = floorAreaOn(floor, basis)
 
   return (
     <footer className="flex h-7 shrink-0 items-center gap-3 border-t border-ink-700 bg-ink-850 px-3 text-[11px] text-mist-400">
@@ -48,7 +50,9 @@ export function StatusBar() {
       {selection ? <span className="chip capitalize">{selection.kind} selected</span> : null}
       <span>{floor.name}</span>
       <span className="text-mist-500">·</span>
-      <span>{formatArea(total)}</span>
+      <span title={`Floor area, measured ${BASIS_LABEL[basis]}`}>
+        {formatArea(total)} {BASIS_LABEL[basis]}
+      </span>
       {view === '2d' ? (
         <>
           <span className="text-mist-500">·</span>

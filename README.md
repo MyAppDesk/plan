@@ -18,13 +18,21 @@ listed under the project name in the toolbar.
   (double-click it on the plan). "Find rooms" adopts anything enclosed later, and "Tidy walls" splits walls at
   junctions and removes duplicates so neighbours share one wall.
 - **Dimensions you can type into** — the selection is dimensioned on the plan; click a figure and type the
-  exact size.
+  exact size. A selected wall is dimensioned on *both* faces at once — the inside run and the outside run —
+  because at a corner one face is cut back and the other carries on past it.
+- **Straight drags** — hold Shift while dragging a corner, a wall, a room or a piece of furniture and it stays
+  on one axis, exactly level with where it started.
+- **Interior, centreline or exterior** — walls are stored as a centreline with a thickness, but nobody measures
+  a room down the middle of its walls. Settings → Measurements picks where every figure is taken from: the
+  interior faces (the clear, usable size — the default), the centrelines, or the outside faces. The plan draws
+  a dashed line along the measured faces of the selected room, whatever you type is read on that same basis,
+  and a room's properties list all three areas at once, plus the wall area to paint and the volume.
 - **Rooms (estancias)** — rectangular rooms by dragging, or free polygons corner by corner. Each room has a
   name, colour, its own ceiling height, and live area / perimeter / volume figures.
 - **Walls** — every edge is a real wall with its own thickness and height. Type an exact length and the wall
   resizes. Corners weld together, so neighbouring rooms share a single wall. Double-click a wall to drop a
   corner on it and bend the run around a column or a recess.
-- **Extrude** — Shift-drag any wall face to pull it out (or push it in). The wall becomes three, the room
+- **Extrude** — Alt-drag any wall face to pull it out (or push it in). The wall becomes three, the room
   outline follows, and openings travel with the face. Split a wall twice first and extrude the middle piece to
   get a column or a niche.
 - **Partial walls** — every wall has a base height and a height, so it can be a full partition, a terrace

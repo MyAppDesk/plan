@@ -320,6 +320,9 @@ export function wallSolids(floor: Floor, wall: Wall, pts = pointMap(floor)): Wal
   const len = dist(e.a, e.b)
   if (len < 1e-4) return []
   const angle = angleOf(e.a, e.b)
+  // run the ends out to the mitre so neighbouring walls meet as one piece of
+  // masonry in 3D instead of leaving a bite out of every corner
+  const ext = wallEndExtensions(floor, wall, pts)
   const base = wallBaseOf(wall)
   const height = wallTopOf(floor, wall)
   const thickness = wall.thickness
@@ -327,10 +330,13 @@ export function wallSolids(floor: Floor, wall: Wall, pts = pointMap(floor)): Wal
   if (height - base <= 1e-4) return []
 
   const at = (t: number) => ({ x: e.a.x + Math.cos(angle) * t, y: e.a.y + Math.sin(angle) * t })
-  const push = (from: number, to: number, rawBottom: number, rawTop: number) => {
+  const push = (rawFrom: number, rawTo: number, rawBottom: number, rawTop: number) => {
     // a wall only ever exists between its own base and top
     const bottom = Math.max(rawBottom, base)
     const top = Math.min(rawTop, height)
+    // whatever touches an end of the wall carries on into the corner
+    const from = rawFrom <= 1e-6 ? -ext.a : rawFrom
+    const to = rawTo >= len - 1e-6 ? len + ext.b : rawTo
     const l = to - from
     if (l <= 1e-4 || top - bottom <= 1e-4) return
     const c = at((from + to) / 2)
@@ -361,6 +367,125 @@ export function wallSolids(floor: Floor, wall: Wall, pts = pointMap(floor)): Wal
   if (cursor < len) push(cursor, len, 0, height)
 
   return out
+}
+
+/* ------------------------------------------------------------------ */
+/* the real outline of a wall, mitred into its neighbours               */
+/* ------------------------------------------------------------------ */
+
+/** Where two lines (a point and a direction) cross; null when parallel. */
+function crossPoint(p: Vec, u: Vec, q: Vec, v: Vec): Vec | null {
+  const den = u.x * v.y - u.y * v.x
+  if (Math.abs(den) < 1e-9) return null
+  const t = ((q.x - p.x) * v.y - (q.y - p.y) * v.x) / den
+  return { x: p.x + u.x * t, y: p.y + u.y * t }
+}
+
+const leftOf = (u: Vec): Vec => ({ x: -u.y, y: u.x })
+
+/** Direction a wall leaves `pointId` in, or null when it does not touch it. */
+function directionFrom(floor: Floor, wall: Wall, pointId: ID, pts: Map<ID, Pt>): Vec | null {
+  const e = wallEnds(floor, wall, pts)
+  if (!e) return null
+  const from = wall.a === pointId ? e.a : e.b
+  const to = wall.a === pointId ? e.b : e.a
+  const d = dist(from, to)
+  if (d < 1e-6) return null
+  return { x: (to.x - from.x) / d, y: (to.y - from.y) / d }
+}
+
+/**
+ * One corner of a wall: where its face on `side` meets the face of the wall it
+ * runs into there. Without this the faces stop dead on the centreline and every
+ * junction is drawn with a bite out of it.
+ */
+function faceCorner(floor: Floor, wall: Wall, pointId: ID, u: Vec, side: 1 | -1, pts: Map<ID, Pt>): Vec {
+  const p = pts.get(pointId)!
+  const l = leftOf(u)
+  const base = { x: p.x + l.x * side * (wall.thickness / 2), y: p.y + l.y * side * (wall.thickness / 2) }
+  const here = Math.atan2(u.y, u.x)
+
+  // the neighbour that closes the wedge on this side is the next one round
+  let best: { wall: Wall; v: Vec } | null = null
+  let bestTurn = Infinity
+  for (const other of wallsAtPoint(floor, pointId)) {
+    if (other.id === wall.id) continue
+    const v = directionFrom(floor, other, pointId, pts)
+    if (!v) continue
+    const turn = (side * (Math.atan2(v.y, v.x) - here) + Math.PI * 4) % (Math.PI * 2)
+    if (turn < 1e-4) continue
+    if (turn < bestTurn) {
+      bestTurn = turn
+      best = { wall: other, v }
+    }
+  }
+  if (!best) return base
+
+  const { v } = best
+  // a neighbour carrying straight on has no corner to mitre into
+  if (Math.abs(u.x * v.y - u.y * v.x) < 0.08) return base
+  const lv = leftOf(v)
+  const half = best.wall.thickness / 2
+  const q = { x: p.x - lv.x * side * half, y: p.y - lv.y * side * half }
+  const hit = crossPoint(base, u, q, v)
+  if (!hit) return base
+  // a very sharp corner would grow a long spike; bevel it off instead
+  return dist(hit, base) > 4 * (wall.thickness + best.wall.thickness) ? base : hit
+}
+
+/**
+ * The four corners of a wall as it is actually built: centreline ± half the
+ * thickness, with every end mitred into the walls it meets, so junctions read
+ * as one piece of masonry instead of separate bars.
+ */
+export function wallOutline(floor: Floor, wall: Wall, pts = pointMap(floor)): Vec[] {
+  const e = wallEnds(floor, wall, pts)
+  if (!e) return []
+  const len = dist(e.a, e.b)
+  if (len < 1e-6) return []
+  const ang = angleOf(e.a, e.b)
+  const u = { x: Math.cos(ang), y: Math.sin(ang) }
+  const back = { x: -u.x, y: -u.y }
+  return [
+    faceCorner(floor, wall, wall.a, u, 1, pts),
+    faceCorner(floor, wall, wall.b, back, -1, pts),
+    faceCorner(floor, wall, wall.b, back, 1, pts),
+    faceCorner(floor, wall, wall.a, u, -1, pts),
+  ]
+}
+
+/**
+ * The two faces of a wall, each running corner to corner. At a corner one face
+ * is cut back and the other reaches past the centreline, which is exactly the
+ * difference between an interior and an exterior measurement.
+ */
+/**
+ * How far the body of a wall reaches past each end point, once its corners are
+ * mitred. The 3D build stretches its boxes by this much so the walls of a
+ * corner overlap and read as one piece, rather than stopping on the centreline
+ * and leaving a notch.
+ */
+export function wallEndExtensions(floor: Floor, wall: Wall, pts = pointMap(floor)): { a: number; b: number } {
+  const e = wallEnds(floor, wall, pts)
+  if (!e) return { a: 0, b: 0 }
+  const len = dist(e.a, e.b)
+  if (len < 1e-6) return { a: 0, b: 0 }
+  const u = { x: (e.b.x - e.a.x) / len, y: (e.b.y - e.a.y) / len }
+  const outline = wallOutline(floor, wall, pts)
+  if (outline.length < 4) return { a: 0, b: 0 }
+  // outline runs a-left, b-left, b-right, a-right
+  const beyond = (p: Vec, from: Vec, sign: number) => Math.max(0, sign * ((p.x - from.x) * u.x + (p.y - from.y) * u.y))
+  return {
+    a: Math.max(beyond(outline[0], e.a, -1), beyond(outline[3], e.a, -1)),
+    b: Math.max(beyond(outline[1], e.b, 1), beyond(outline[2], e.b, 1)),
+  }
+}
+
+export function wallFaces(floor: Floor, wall: Wall, pts = pointMap(floor)): { left: [Vec, Vec]; right: [Vec, Vec] } | null {
+  const o = wallOutline(floor, wall, pts)
+  if (o.length < 4) return null
+  // outline runs: a-left, b-left, b-right, a-right
+  return { left: [o[0], o[1]], right: [o[3], o[2]] }
 }
 
 export function columnTopOf(floor: Floor, column: Column): number {

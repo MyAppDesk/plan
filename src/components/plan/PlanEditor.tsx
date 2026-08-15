@@ -18,10 +18,12 @@ import {
   polygonBounds,
   roomPoints,
   snapToWallFace,
-  wallLength,
   wallEnds,
+  wallFaces,
+  wallLength,
   type Vec,
 } from '../../lib/geometry'
+import { BASIS_LABEL, roomBoundsOn } from '../../lib/measure'
 import {
   C,
   ColumnGhost,
@@ -44,11 +46,11 @@ import {
 
 type Drag =
   | { kind: 'pan'; startX: number; startY: number; viewX: number; viewY: number }
-  | { kind: 'point'; id: ID }
+  | { kind: 'point'; id: ID; origin: Vec }
   | { kind: 'wall'; id: ID; a: { id: ID; x: number; y: number }; b: { id: ID; x: number; y: number }; origin: Vec }
   | { kind: 'room'; id: ID; origin: Vec; applied: Vec }
-  | { kind: 'item'; id: ID; grab: Vec }
-  | { kind: 'column'; id: ID; grab: Vec }
+  | { kind: 'item'; id: ID; grab: Vec; origin: Vec }
+  | { kind: 'column'; id: ID; grab: Vec; origin: Vec }
   | {
       kind: 'column-resize'
       id: ID
@@ -71,7 +73,7 @@ type Drag =
       base: { minX: number; minY: number; maxX: number; maxY: number }
     }
   | { kind: 'extrude'; id: ID; a: Vec; b: Vec; n: Vec; offset: number }
-  | { kind: 'site-point'; index: number }
+  | { kind: 'site-point'; index: number; origin: Vec }
   | { kind: 'site'; origin: Vec; applied: Vec }
   | { kind: 'rotate'; id: ID }
   | { kind: 'opening'; id: ID }
@@ -101,6 +103,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     | null
   >(null)
   const shiftRef = useRef(false)
+  const altRef = useRef(false)
   const spaceRef = useRef(false)
 
   const floor = useActiveFloor()
@@ -111,6 +114,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   const gridSize = useProject((s) => s.gridSize)
   const showGrid = useProject((s) => s.showGrid)
   const showDims = useProject((s) => s.showDims)
+  const dimBasis = useProject((s) => s.dimBasis)
   const showFurniture = useProject((s) => s.showFurniture)
   const catalogKind = useProject((s) => s.catalogKind)
   const site = useProject((s) => s.project.site)
@@ -252,6 +256,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
       if (e.key === 'Shift') shiftRef.current = true
+      if (e.key === 'Alt') altRef.current = true
       if (e.code === 'Space') spaceRef.current = true
       const editing = (e.target as HTMLElement)?.tagName?.match(/INPUT|TEXTAREA|SELECT/)
       if (editing) return
@@ -269,6 +274,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     }
     const up = (e: KeyboardEvent) => {
       if (e.key === 'Shift') shiftRef.current = false
+      if (e.key === 'Alt') altRef.current = false
       if (e.code === 'Space') spaceRef.current = false
     }
     window.addEventListener('keydown', down)
@@ -398,26 +404,39 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     setGuides({})
   }
 
+  /** Shift keeps a drag on one axis: the thing moves dead straight from where it started. */
+  const straight = (from: Vec, to: Vec): Vec => {
+    if (!shiftRef.current) return to
+    return Math.abs(to.x - from.x) >= Math.abs(to.y - from.y) ? { x: to.x, y: from.y } : { x: from.x, y: to.y }
+  }
+
+  /** The same lock, for the drags that work in deltas rather than positions. */
+  const straightDelta = (delta: Vec): Vec => {
+    if (!shiftRef.current) return delta
+    return Math.abs(delta.x) >= Math.abs(delta.y) ? { x: delta.x, y: 0 } : { x: 0, y: delta.y }
+  }
+
   const applyDrag = (d: Drag, w: Vec) => {
     const st = store.getState()
     const floorSite = st.project.site
     switch (d?.kind) {
       case 'point': {
-        const s = snapTo(w, { exclude: [d.id] })
+        const s = snapTo(w, { exclude: [d.id], from: d.origin })
         setGuides(s.guides)
-        st.movePoint(d.id, s.p.x, s.p.y)
+        const p = straight(d.origin, s.p)
+        st.movePoint(d.id, p.x, p.y)
         break
       }
       case 'wall': {
         const raw = { x: w.x - d.origin.x, y: w.y - d.origin.y }
-        const delta = snapDelta(raw)
+        const delta = straightDelta(snapDelta(raw))
         st.movePoint(d.a.id, d.a.x + delta.x, d.a.y + delta.y)
         st.movePoint(d.b.id, d.b.x + delta.x, d.b.y + delta.y)
         break
       }
       case 'room': {
         const raw = { x: w.x - d.origin.x, y: w.y - d.origin.y }
-        const delta = snapDelta(raw)
+        const delta = straightDelta(snapDelta(raw))
         const dx = delta.x - d.applied.x
         const dy = delta.y - d.applied.y
         if (dx || dy) {
@@ -432,8 +451,9 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         const target = { x: w.x - d.grab.x, y: w.y - d.grab.y }
         const s = snapTo(target, { exclude: floor.points.map((p) => p.id) })
         let next = { x: s.p.x, y: s.p.y, w: it.w, d: it.d, rot: it.rot }
-        if (snapWalls) next = snapToWallFace(floor, next) ?? next
-        st.updateItem(d.id, { x: next.x, y: next.y, rot: next.rot })
+        if (snapWalls && !shiftRef.current) next = snapToWallFace(floor, next) ?? next
+        const p = straight(d.origin, next)
+        st.updateItem(d.id, { x: p.x, y: p.y, rot: next.rot })
         break
       }
       case 'column': {
@@ -442,8 +462,9 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         const target = { x: w.x - d.grab.x, y: w.y - d.grab.y }
         const s = snapTo(target, { exclude: floor.points.map((p) => p.id) })
         let next = { x: s.p.x, y: s.p.y, w: c.w, d: c.d, rot: c.rot }
-        if (snapWalls) next = snapToWallFace(floor, next) ?? next
-        st.updateColumn(d.id, { x: next.x, y: next.y, rot: next.rot })
+        if (snapWalls && !shiftRef.current) next = snapToWallFace(floor, next) ?? next
+        const p = straight(d.origin, next)
+        st.updateColumn(d.id, { x: p.x, y: p.y, rot: next.rot })
         break
       }
       case 'column-resize':
@@ -529,13 +550,14 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       case 'site-point': {
         const s = snapTo(w)
         setGuides(s.guides)
-        st.moveSitePoint(d.index, s.p.x, s.p.y)
+        const p = straight(d.origin, s.p)
+        st.moveSitePoint(d.index, p.x, p.y)
         break
       }
       case 'site': {
         const outline = floorSite?.outline
         if (!outline) break
-        const delta = snapDelta({ x: w.x - d.origin.x, y: w.y - d.origin.y })
+        const delta = straightDelta(snapDelta({ x: w.x - d.origin.x, y: w.y - d.origin.y }))
         const dx = delta.x - d.applied.x
         const dy = delta.y - d.applied.y
         if (!dx && !dy) break
@@ -625,14 +647,16 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     st.beginDrag()
 
     switch (sel.kind) {
-      case 'point':
-        setDrag({ kind: 'point', id: sel.id })
+      case 'point': {
+        const p = floor.points.find((q) => q.id === sel.id)
+        setDrag({ kind: 'point', id: sel.id, origin: p ? { x: p.x, y: p.y } : w })
         break
+      }
       case 'wall': {
         const wall = floor.walls.find((x) => x.id === sel.id)
         const ends = wall ? wallEnds(floor, wall) : null
-        if (wall && ends && shiftRef.current) {
-          // Shift-drag pulls the wall out into a column, a recess or a bay
+        if (wall && ends && altRef.current) {
+          // Alt-drag pulls the wall out into a column, a recess or a bay
           st.endDrag()
           const ang = angleOf(ends.a, ends.b)
           setDrag({
@@ -660,12 +684,14 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         break
       case 'item': {
         const it = floor.items.find((i) => i.id === sel.id)
-        if (it) setDrag({ kind: 'item', id: sel.id, grab: { x: w.x - it.x, y: w.y - it.y } })
+        if (it)
+          setDrag({ kind: 'item', id: sel.id, grab: { x: w.x - it.x, y: w.y - it.y }, origin: { x: it.x, y: it.y } })
         break
       }
       case 'column': {
         const c = floor.columns.find((x) => x.id === sel.id)
-        if (c) setDrag({ kind: 'column', id: sel.id, grab: { x: w.x - c.x, y: w.y - c.y } })
+        if (c)
+          setDrag({ kind: 'column', id: sel.id, grab: { x: w.x - c.x, y: w.y - c.y }, origin: { x: c.x, y: c.y } })
         break
       }
       case 'opening':
@@ -727,22 +753,35 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
       const room = floor.rooms.find((r) => r.id === sel.id)
       if (!room) return
       const b = polygonBounds(roomPoints(floor, room))
-      editNumber(axis === 'w' ? 'Room width' : 'Room depth', axis === 'w' ? b.maxX - b.minX : b.maxY - b.minY, (v) =>
+      const m = roomBoundsOn(floor, room, dimBasis)
+      // the walls the figure is measured from stay put, so the typed size is the clear one
+      const padW = b.maxX - b.minX - (m.maxX - m.minX)
+      const padD = b.maxY - b.minY - (m.maxY - m.minY)
+      const label = `${axis === 'w' ? 'Room width' : 'Room depth'} (${BASIS_LABEL[dimBasis]})`
+      editNumber(label, axis === 'w' ? m.maxX - m.minX : m.maxY - m.minY, (v) =>
         st.setRoomBounds(sel.id, {
           minX: b.minX,
           minY: b.minY,
-          maxX: axis === 'w' ? b.minX + v : b.maxX,
-          maxY: axis === 'd' ? b.minY + v : b.maxY,
+          maxX: axis === 'w' ? b.minX + Math.max(0.2, v + padW) : b.maxX,
+          maxY: axis === 'd' ? b.minY + Math.max(0.2, v + padD) : b.maxY,
         }),
       )
     }
   }
 
-  const editWallLength = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
+  /** Each face of a wall carries its own figure — the inside one and the outside one. */
+  const editWallFace = (id: ID) => (face: 'left' | 'right') => (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true
     const wall = floor.walls.find((w) => w.id === id)
     if (!wall) return
-    editNumber('Wall length', wallLength(floor, wall), (v) => store.getState().setWallLength(id, v))
+    const faces = wallFaces(floor, wall)
+    if (!faces) return
+    const shown = dist(faces[face][0], faces[face][1])
+    const centre = wallLength(floor, wall)
+    const other = dist(faces[face === 'left' ? 'right' : 'left'][0], faces[face === 'left' ? 'right' : 'left'][1])
+    const label = shown < other ? 'Inside face' : shown > other ? 'Outside face' : 'Wall face'
+    // the neighbours keep cutting the same amount off the ends, so both faces shift together
+    editNumber(label, shown, (v) => store.getState().setWallLength(id, Math.max(0.05, centre + (v - shown))))
   }
 
   const renameRoom = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
@@ -775,7 +814,8 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     e.cancelBubble = true
     store.getState().select({ kind: 'site', id: 'site' })
     store.getState().beginDrag()
-    setDrag({ kind: 'site-point', index })
+    const corner = site?.outline[index]
+    setDrag({ kind: 'site-point', index, origin: corner ? { x: corner.x, y: corner.y } : (pointer() ?? { x: 0, y: 0 }) })
   }
 
   /** Double-click adds a corner on an edge, or removes the one you hit. */
@@ -895,6 +935,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               room={room}
               scale={view.scale}
               showDims={showDims}
+              basis={dimBasis}
               selected={selection?.kind === 'room' && selection.id === room.id}
               onDown={startEntity({ kind: 'room', id: room.id })}
               onDblClick={renameRoom(room.id)}
@@ -908,11 +949,12 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               wall={wall}
               scale={view.scale}
               showDims={showDims}
+              basis={dimBasis}
               selected={selection?.kind === 'wall' && selection.id === wall.id}
               hovered={hoverWall?.id === wall.id}
               onDown={startEntity({ kind: 'wall', id: wall.id })}
               onDblClick={splitWallAt(wall.id)}
-              onEditLength={editWallLength(wall.id)}
+              onEditFace={editWallFace(wall.id)}
             />
           ))}
 
@@ -969,6 +1011,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               floor={floor}
               selection={selection}
               scale={view.scale}
+              basis={dimBasis}
               onItemResize={startItemResize}
               onRoomResize={startRoomResize}
               onColumnResize={startColumnResize}
