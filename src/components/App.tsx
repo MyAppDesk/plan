@@ -60,6 +60,7 @@ export function App() {
       const tool = TOOL_KEYS[e.key.toLowerCase()]
       if (tool) st.setTool(tool)
       if (e.key.toLowerCase() === 'g') st.toggleUi('snap')
+      if (e.key.toLowerCase() === 'h') st.toggleUi('snapWalls')
       if (e.key.toLowerCase() === 'f') emit('fit')
       if ((e.key === 'Delete' || e.key === 'Backspace') && st.selection) {
         e.preventDefault()

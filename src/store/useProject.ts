@@ -16,13 +16,16 @@ import type {
 } from '../types'
 import { catalogItem } from '../lib/catalog'
 import {
+  angleOf,
   clamp,
+  closestOnSegment,
   dist,
   findWallBetween,
   nearestPoint,
   pointMap,
   polygonBounds,
   roomPoints,
+  snapToWallFace,
   uid,
   type Vec,
 } from '../lib/geometry'
@@ -188,6 +191,7 @@ export interface UiState {
   view: ViewMode
   selection: Selection | null
   snap: boolean
+  snapWalls: boolean
   gridSize: number
   showGrid: boolean
   showDims: boolean
@@ -206,7 +210,9 @@ export interface ProjectState extends UiState {
   setTool: (t: Tool) => void
   setView: (v: ViewMode) => void
   select: (s: Selection | null) => void
-  toggleUi: (key: 'snap' | 'showGrid' | 'showDims' | 'showFurniture' | 'showCeiling' | 'showAllFloors') => void
+  toggleUi: (
+    key: 'snap' | 'snapWalls' | 'showGrid' | 'showDims' | 'showFurniture' | 'showCeiling' | 'showAllFloors',
+  ) => void
   setGridSize: (v: number) => void
   setCatalogKind: (k: string) => void
   flash: (msg: string | null) => void
@@ -230,6 +236,8 @@ export interface ProjectState extends UiState {
   movePoint: (id: ID, x: number, y: number, weld?: boolean) => void
   moveRoom: (id: ID, dx: number, dy: number) => void
   resizeRoom: (id: ID, w: number, h: number) => void
+  setRoomBounds: (id: ID, box: { minX: number; minY: number; maxX: number; maxY: number }) => void
+  splitWall: (id: ID, at: Vec) => void
   setWallLength: (id: ID, length: number) => void
   updateWall: (id: ID, patch: Partial<Wall>) => void
   updateRoom: (id: ID, patch: Partial<Room>) => void
@@ -299,6 +307,7 @@ export const useProject = create<ProjectState>()(
         view: '2d',
         selection: null,
         snap: true,
+        snapWalls: true,
         gridSize: 0.1,
         showGrid: true,
         showDims: true,
@@ -431,6 +440,14 @@ export const useProject = create<ProjectState>()(
         createItem: (kind, x, y) =>
           withFloor((floor, state) => {
             const item = addItem(floor, kind, x, y)
+            if (state.snapWalls) {
+              const placed = snapToWallFace(floor, { x: item.x, y: item.y, w: item.w, d: item.d, rot: item.rot })
+              if (placed) {
+                item.x = placed.x
+                item.y = placed.y
+                item.rot = placed.rot
+              }
+            }
             state.selection = { kind: 'item', id: item.id }
           }),
 
@@ -495,6 +512,76 @@ export const useProject = create<ProjectState>()(
               p.x = b.minX + (p.x - b.minX) * sx
               p.y = b.minY + (p.y - b.minY) * sy
             }
+          }),
+
+        setRoomBounds: (id, box) =>
+          withFloor((floor) => {
+            const room = floor.rooms.find((r) => r.id === id)
+            if (!room) return
+            const pts = roomPoints(floor, room)
+            if (pts.length < 3) return
+            const b = polygonBounds(pts)
+            const curW = b.maxX - b.minX
+            const curH = b.maxY - b.minY
+            const nextW = Math.max(0.2, box.maxX - box.minX)
+            const nextH = Math.max(0.2, box.maxY - box.minY)
+            const sx = curW < 1e-6 ? 1 : nextW / curW
+            const sy = curH < 1e-6 ? 1 : nextH / curH
+            const ids = new Set(room.loop)
+            for (const p of floor.points) if (ids.has(p.id)) {
+              p.x = box.minX + (p.x - b.minX) * sx
+              p.y = box.minY + (p.y - b.minY) * sy
+            }
+          }),
+
+        /** Breaks a wall in two at `at`, so the run can bend around a column. */
+        splitWall: (id, at) =>
+          withFloor((floor, state) => {
+            const wall = floor.walls.find((w) => w.id === id)
+            if (!wall) return
+            const pts = pointMap(floor)
+            const a = pts.get(wall.a)
+            const b = pts.get(wall.b)
+            if (!a || !b) return
+            const len = dist(a, b)
+            if (len < 0.2) return
+            const r = closestOnSegment(at, a, b)
+            const cut = clamp(r.t * len, 0.05, len - 0.05)
+            const ang = angleOf(a, b)
+            const mid = { id: uid('p'), x: a.x + Math.cos(ang) * cut, y: a.y + Math.sin(ang) * cut }
+            floor.points.push(mid)
+
+            const first: Wall = { ...wall, id: uid('w'), a: wall.a, b: mid.id }
+            const second: Wall = { ...wall, id: uid('w'), a: mid.id, b: wall.b }
+            floor.walls = floor.walls.filter((w) => w.id !== wall.id)
+            floor.walls.push(first, second)
+
+            for (const o of floor.openings) {
+              if (o.wallId !== wall.id) continue
+              if (o.offset <= cut) {
+                o.wallId = first.id
+                o.width = Math.min(o.width, cut)
+                o.offset = clamp(o.offset, o.width / 2, Math.max(o.width / 2, cut - o.width / 2))
+              } else {
+                o.wallId = second.id
+                const rest = len - cut
+                o.width = Math.min(o.width, rest)
+                o.offset = clamp(o.offset - cut, o.width / 2, Math.max(o.width / 2, rest - o.width / 2))
+              }
+            }
+
+            for (const room of floor.rooms) {
+              for (let i = 0; i < room.loop.length; i++) {
+                const p = room.loop[i]
+                const q = room.loop[(i + 1) % room.loop.length]
+                if ((p === wall.a && q === wall.b) || (p === wall.b && q === wall.a)) {
+                  room.loop.splice(i + 1, 0, mid.id)
+                  break
+                }
+              }
+            }
+
+            state.selection = { kind: 'point', id: mid.id }
           }),
 
         setWallLength: (id, length) =>

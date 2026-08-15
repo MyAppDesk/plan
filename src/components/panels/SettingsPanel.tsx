@@ -29,6 +29,11 @@ export function SettingsPanel() {
             onChange={(v) => s.setGridSize(Number(v))}
           />
         </div>
+        <Toggle label="Snap furniture to walls" checked={s.snapWalls} onChange={() => s.toggleUi('snapWalls')} />
+        <p className="px-1 text-[11px] leading-relaxed text-mist-400">
+          Furniture lands against the face of the wall — never inside it — and lines up with it when it is roughly
+          parallel. Turn it off to place things freely.
+        </p>
         <Toggle label="Show grid" checked={s.showGrid} onChange={() => s.toggleUi('showGrid')} />
         <Toggle label="Show dimensions & labels" checked={s.showDims} onChange={() => s.toggleUi('showDims')} />
       </Section>

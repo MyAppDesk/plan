@@ -14,7 +14,9 @@ import {
   nearestPoint,
   nearestWall,
   pointMap,
+  polygonBounds,
   roomPoints,
+  snapToWallFace,
   wallEnds,
   type Vec,
 } from '../../lib/geometry'
@@ -30,6 +32,7 @@ import {
   PathDraft,
   RectDraft,
   RoomShape,
+  SelectionGrips,
   WallShape,
 } from './planShapes'
 
@@ -39,6 +42,20 @@ type Drag =
   | { kind: 'wall'; id: ID; a: { id: ID; x: number; y: number }; b: { id: ID; x: number; y: number }; origin: Vec }
   | { kind: 'room'; id: ID; origin: Vec; applied: Vec }
   | { kind: 'item'; id: ID; grab: Vec }
+  | {
+      kind: 'item-resize'
+      id: ID
+      sx: number
+      sy: number
+      base: { x: number; y: number; w: number; d: number; rot: number }
+    }
+  | {
+      kind: 'room-resize'
+      id: ID
+      sx: number
+      sy: number
+      base: { minX: number; minY: number; maxX: number; maxY: number }
+    }
   | { kind: 'rotate'; id: ID }
   | { kind: 'opening'; id: ID }
   | { kind: 'measure'; id: ID; end: 'a' | 'b' }
@@ -68,6 +85,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
   const tool = useProject((s) => s.tool)
   const selection = useProject((s) => s.selection)
   const snap = useProject((s) => s.snap)
+  const snapWalls = useProject((s) => s.snapWalls)
   const gridSize = useProject((s) => s.gridSize)
   const showGrid = useProject((s) => s.showGrid)
   const showDims = useProject((s) => s.showDims)
@@ -355,9 +373,55 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
         break
       }
       case 'item': {
+        const it = floor.items.find((i) => i.id === d.id)
+        if (!it) break
         const target = { x: w.x - d.grab.x, y: w.y - d.grab.y }
         const s = snapTo(target, { exclude: floor.points.map((p) => p.id) })
-        st.updateItem(d.id, { x: s.p.x, y: s.p.y })
+        let next = { x: s.p.x, y: s.p.y, w: it.w, d: it.d, rot: it.rot }
+        if (snapWalls) next = snapToWallFace(floor, next) ?? next
+        st.updateItem(d.id, { x: next.x, y: next.y, rot: next.rot })
+        break
+      }
+      case 'item-resize': {
+        const { base, sx, sy } = d
+        const cos = Math.cos(base.rot)
+        const sin = Math.sin(base.rot)
+        const dx = w.x - base.x
+        const dy = w.y - base.y
+        const lx = dx * cos + dy * sin
+        const ly = -dx * sin + dy * cos
+        let nw = base.w
+        let nd = base.d
+        let clx = 0
+        let cly = 0
+        const round = (v: number) => (snap ? Math.max(gridSize, Math.round(v / gridSize) * gridSize) : v)
+        if (sx !== 0) {
+          const anchor = (-sx * base.w) / 2
+          nw = Math.max(0.05, round(Math.abs(lx - anchor)))
+          clx = anchor + (sx * nw) / 2
+        }
+        if (sy !== 0) {
+          const anchor = (-sy * base.d) / 2
+          nd = Math.max(0.05, round(Math.abs(ly - anchor)))
+          cly = anchor + (sy * nd) / 2
+        }
+        st.updateItem(d.id, {
+          w: nw,
+          d: nd,
+          x: base.x + clx * cos - cly * sin,
+          y: base.y + clx * sin + cly * cos,
+        })
+        break
+      }
+      case 'room-resize': {
+        const s = snapTo(w, { exclude: floor.rooms.find((r) => r.id === d.id)?.loop ?? [] })
+        setGuides(s.guides)
+        const box = { ...d.base }
+        if (d.sx > 0) box.maxX = Math.max(box.minX + 0.2, s.p.x)
+        if (d.sx < 0) box.minX = Math.min(box.maxX - 0.2, s.p.x)
+        if (d.sy > 0) box.maxY = Math.max(box.minY + 0.2, s.p.y)
+        if (d.sy < 0) box.minY = Math.min(box.maxY - 0.2, s.p.y)
+        st.setRoomBounds(d.id, box)
         break
       }
       case 'rotate': {
@@ -494,6 +558,35 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
     }
   }
 
+  const startItemResize = (id: ID) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true
+    if (tool !== 'select') return
+    const it = floor.items.find((i) => i.id === id)
+    if (!it) return
+    store.getState().select({ kind: 'item', id })
+    store.getState().beginDrag()
+    setDrag({ kind: 'item-resize', id, sx, sy, base: { x: it.x, y: it.y, w: it.w, d: it.d, rot: it.rot } })
+  }
+
+  const startRoomResize = (id: ID) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => {
+    e.cancelBubble = true
+    if (tool !== 'select') return
+    const room = floor.rooms.find((r) => r.id === id)
+    if (!room) return
+    store.getState().select({ kind: 'room', id })
+    store.getState().beginDrag()
+    setDrag({ kind: 'room-resize', id, sx, sy, base: polygonBounds(roomPoints(floor, room)) })
+  }
+
+  /** Double-clicking a wall drops a corner on it, so the run can bend. */
+  const splitWallAt = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
+    if (tool !== 'select') return
+    e.cancelBubble = true
+    const w = pointer()
+    if (!w) return
+    store.getState().splitWall(id, snapTo(w).p)
+  }
+
   const startRotate = (id: ID) => (e: KonvaEventObject<MouseEvent>) => {
     e.cancelBubble = true
     store.getState().beginDrag()
@@ -566,6 +659,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               selected={selection?.kind === 'wall' && selection.id === wall.id}
               hovered={hoverWall?.id === wall.id}
               onDown={startEntity({ kind: 'wall', id: wall.id })}
+              onDblClick={splitWallAt(wall.id)}
             />
           ))}
 
@@ -604,6 +698,16 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
               onEndDown={startMeasureEnd(m.id)}
             />
           ))}
+
+          {tool === 'select' ? (
+            <SelectionGrips
+              floor={floor}
+              selection={selection}
+              scale={view.scale}
+              onItemResize={startItemResize}
+              onRoomResize={startRoomResize}
+            />
+          ) : null}
 
           {tool === 'select' ? (
             <CornerHandles
@@ -653,7 +757,7 @@ export function PlanEditor({ hidden }: { hidden?: boolean }) {
             <PathDraft pts={[measureStart]} cursor={cursor} closed={false} scale={view.scale} thickness={0.02} />
           ) : null}
 
-          {tool === 'item' ? <ItemGhost kind={catalogKind} at={cursor} /> : null}
+          {tool === 'item' ? <ItemGhost kind={catalogKind} at={cursor} snapWalls={snapWalls} floor={floor} /> : null}
 
           {(tool === 'door' || tool === 'window') && hoverWall ? (
             <OpeningGhost floor={floor} wallId={hoverWall.id} offset={hoverWall.offset} kind={tool} />

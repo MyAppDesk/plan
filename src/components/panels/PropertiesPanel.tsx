@@ -1,4 +1,4 @@
-import { Copy, Trash2, RotateCw, FlipHorizontal2, ArrowLeftRight } from 'lucide-react'
+import { Copy, Trash2, RotateCw, FlipHorizontal2, ArrowLeftRight, Split } from 'lucide-react'
 import { ROOM_COLORS, useActiveFloor, useProject } from '../../store/useProject'
 import { CATALOG, catalogItem } from '../../lib/catalog'
 import {
@@ -109,11 +109,49 @@ export function PropertiesPanel() {
               onChange={(v) => st.getState().updateWall(wall.id, { height: v })}
             />
           </Row>
-          {wall.height !== null ? (
-            <button className="btn w-full" onClick={() => st.getState().updateWall(wall.id, { height: null })}>
-              Use floor height ({floor.height.toFixed(2)} m)
-            </button>
-          ) : null}
+          <div>
+            <span className="field-label">Low wall presets</span>
+            <div className="grid grid-cols-4 gap-1.5">
+              <button
+                className={`btn ${wall.height === null ? 'border-accent text-accent' : ''}`}
+                title="Full height, same as the floor"
+                onClick={() => st.getState().updateWall(wall.id, { height: null })}
+              >
+                Full
+              </button>
+              {[
+                { label: '1.10', v: 1.1, title: 'Balcony / terrace parapet' },
+                { label: '0.90', v: 0.9, title: 'Half wall' },
+                { label: '0.40', v: 0.4, title: 'Kerb / step' },
+              ].map((p) => (
+                <button
+                  key={p.v}
+                  className={`btn ${wall.height === p.v ? 'border-accent text-accent' : ''}`}
+                  title={p.title}
+                  onClick={() => st.getState().updateWall(wall.id, { height: p.v })}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {wall.height !== null ? (
+              <p className="mt-1.5 text-[11px] text-mist-400">
+                Low wall — drawn dashed on the plan and built {wall.height.toFixed(2)} m high in 3D. Floor default is{' '}
+                {floor.height.toFixed(2)} m.
+              </p>
+            ) : null}
+          </div>
+          <button
+            className="btn w-full"
+            title="Adds a corner in the middle so the wall can bend around a column"
+            onClick={() => {
+              const e2 = wallEnds(floor, wall)
+              if (e2) st.getState().splitWall(wall.id, { x: (e2.a.x + e2.b.x) / 2, y: (e2.a.y + e2.b.y) / 2 })
+            }}
+          >
+            <Split size={14} /> Add a corner in the middle
+          </button>
+          <p className="text-[11px] text-mist-400">Tip: double-click anywhere on a wall to drop a corner there.</p>
           <Stat label="Angle" value={`${angle.toFixed(1)}°`} />
           <Stat label="Openings" value={String(openings.length)} />
         </Section>

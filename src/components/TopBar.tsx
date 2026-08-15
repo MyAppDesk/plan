@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   Magnet,
   Maximize,
+  PanelsTopLeft,
   Plus,
   Redo2,
   Ruler,
@@ -36,6 +37,7 @@ export function TopBar({
   const view = useProject((s) => s.view)
   const setView = useProject((s) => s.setView)
   const snap = useProject((s) => s.snap)
+  const snapWalls = useProject((s) => s.snapWalls)
   const toggleUi = useProject((s) => s.toggleUi)
   const floors = useProject((s) => s.project.floors)
   const activeFloorId = useProject((s) => s.activeFloorId)
@@ -110,6 +112,13 @@ export function TopBar({
           onClick={() => toggleUi('snap')}
         >
           <Magnet size={16} />
+        </button>
+        <button
+          className={`icon-btn ${snapWalls ? 'is-active' : ''}`}
+          title="Snap furniture to wall faces (H)"
+          onClick={() => toggleUi('snapWalls')}
+        >
+          <PanelsTopLeft size={16} />
         </button>
         <button className="icon-btn" title="Zoom to fit (F)" onClick={() => emit('fit')}>
           <Maximize size={16} />

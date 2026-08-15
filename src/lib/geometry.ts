@@ -297,6 +297,74 @@ export function resolveCollisions(pos: Vec, radius: number, solids: WallSolid[])
 }
 
 /* ------------------------------------------------------------------ */
+/* snapping furniture to the face of a wall                            */
+/* ------------------------------------------------------------------ */
+
+export interface Placed {
+  x: number
+  y: number
+  w: number
+  d: number
+  rot: number
+}
+
+/** Half-extent of a rotated footprint measured along the direction `n`. */
+function halfExtentAlong(item: { w: number; d: number; rot: number }, n: Vec): number {
+  const ux = Math.cos(item.rot)
+  const uy = Math.sin(item.rot)
+  return Math.abs((item.w / 2) * (ux * n.x + uy * n.y)) + Math.abs((item.d / 2) * (-uy * n.x + ux * n.y))
+}
+
+/**
+ * Pushes an item against the *face* of the nearest wall — never inside it —
+ * and lines it up with the wall when it is already roughly parallel.
+ * Returns null when no wall is close enough.
+ */
+export function snapToWallFace(floor: Floor, item: Placed, maxDist = 0.35): Placed | null {
+  const pts = pointMap(floor)
+  let best: { placed: Placed; delta: number } | null = null
+
+  for (const wall of floor.walls) {
+    const e = wallEnds(floor, wall, pts)
+    if (!e) continue
+    const len = dist(e.a, e.b)
+    if (len < 1e-4) continue
+    const ang = angleOf(e.a, e.b)
+    const dir = { x: Math.cos(ang), y: Math.sin(ang) }
+    const n = { x: -dir.y, y: dir.x }
+    const rel = { x: item.x - e.a.x, y: item.y - e.a.y }
+    const along = rel.x * dir.x + rel.y * dir.y
+    const lateral = rel.x * n.x + rel.y * n.y
+    // only walls the item actually sits next to
+    if (along < -item.w / 2 || along > len + item.w / 2) continue
+
+    // line the item up with the wall when it is within ~25° of parallel
+    let rot = item.rot
+    const quarter = Math.PI / 2
+    const candidate = ang + Math.round((rot - ang) / quarter) * quarter
+    if (Math.abs(((rot - candidate + Math.PI) % (Math.PI * 2)) - Math.PI) < 0.44) rot = candidate
+
+    const side = lateral >= 0 ? 1 : -1
+    const he = halfExtentAlong({ w: item.w, d: item.d, rot }, n)
+    const clear = wall.thickness / 2 + he
+    const target = side * clear
+    const delta = target - lateral
+    // snap when close enough, and always when the footprint runs into the wall —
+    // furniture is pushed against the face, never left inside it
+    const overlapping = Math.abs(lateral) < clear
+    if (!overlapping && Math.abs(delta) > maxDist) continue
+    if (best && Math.abs(delta) >= Math.abs(best.delta)) continue
+
+    best = {
+      delta,
+      placed: { ...item, rot, x: item.x + n.x * delta, y: item.y + n.y * delta },
+    }
+  }
+
+  return best?.placed ?? null
+}
+
+/* ------------------------------------------------------------------ */
 /* bounds                                                              */
 /* ------------------------------------------------------------------ */
 

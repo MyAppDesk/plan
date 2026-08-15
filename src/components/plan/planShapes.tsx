@@ -8,8 +8,10 @@ import {
   formatArea,
   formatLen,
   polygonArea,
+  polygonBounds,
   polygonCentroid,
   pointMap,
+  snapToWallFace,
   roomArea,
   roomPoints,
   wallEnds,
@@ -17,6 +19,7 @@ import {
 
 export const C = {
   wall: '#c9d2e2',
+  wallLow: '#8ba0c4',
   wallSelected: '#4f8cff',
   wallHover: '#8fb4ff',
   bg: '#0e121a',
@@ -193,6 +196,7 @@ export function WallShape({
   scale,
   showDims,
   onDown,
+  onDblClick,
 }: {
   floor: Floor
   wall: Wall
@@ -201,10 +205,13 @@ export function WallShape({
   scale: number
   showDims: boolean
   onDown: (e: KonvaEventObject<MouseEvent>) => void
+  onDblClick?: (e: KonvaEventObject<MouseEvent>) => void
 }) {
   const e = wallEnds(floor, wall)
   if (!e) return null
   const len = dist(e.a, e.b)
+  const height = wall.height ?? floor.height
+  const low = height < floor.height - 1e-6
   const ang = angleOf(e.a, e.b)
   const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
   const deg = (ang * 180) / Math.PI
@@ -217,11 +224,13 @@ export function WallShape({
     <Group>
       <Line
         points={[e.a.x, e.a.y, e.b.x, e.b.y]}
-        stroke={selected ? C.wallSelected : hovered ? C.wallHover : C.wall}
+        stroke={selected ? C.wallSelected : hovered ? C.wallHover : low ? C.wallLow : C.wall}
         strokeWidth={wall.thickness}
         lineCap="butt"
+        dash={low ? [0.32, 0.16] : undefined}
         hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
         onMouseDown={onDown}
+        onDblClick={onDblClick}
         onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
       />
       {showDims && len > 0.35 ? (
@@ -229,9 +238,9 @@ export function WallShape({
           x={mid.x + nx}
           y={mid.y + ny}
           rotation={flip ? deg + 180 : deg}
-          text={formatLen(len)}
+          text={low ? `${formatLen(len)} · h ${formatLen(height)}` : formatLen(len)}
           scale={scale}
-          color={selected ? C.accent : C.dim}
+          color={selected ? C.accent : low ? C.wallLow : C.dim}
           size={10.5}
         />
       ) : null}
@@ -444,6 +453,120 @@ export function ItemShape({
 }
 
 /* ------------------------------------------------------------------ */
+/* resize grips                                                        */
+/* ------------------------------------------------------------------ */
+
+const HANDLES: [number, number][] = [
+  [-1, -1],
+  [0, -1],
+  [1, -1],
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [-1, 1],
+  [-1, 0],
+]
+
+const CURSORS: Record<string, string> = {
+  '-1,-1': 'nwse-resize',
+  '1,1': 'nwse-resize',
+  '1,-1': 'nesw-resize',
+  '-1,1': 'nesw-resize',
+  '0,-1': 'ns-resize',
+  '0,1': 'ns-resize',
+  '-1,0': 'ew-resize',
+  '1,0': 'ew-resize',
+}
+
+/** The usual eight grips around a box, drawn at a constant on-screen size. */
+export function ResizeHandles({
+  hw,
+  hd,
+  scale,
+  onDown,
+}: {
+  hw: number
+  hd: number
+  scale: number
+  onDown: (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const s = 8 / scale
+  return (
+    <Group>
+      {HANDLES.map(([sx, sy]) => (
+        <Rect
+          key={`${sx},${sy}`}
+          x={sx * hw - s / 2}
+          y={sy * hd - s / 2}
+          width={s}
+          height={s}
+          fill="#0e121a"
+          stroke={C.accent}
+          strokeWidth={1.5}
+          strokeScaleEnabled={false}
+          cornerRadius={s * 0.2}
+          onMouseDown={onDown(sx, sy)}
+          onTouchStart={onDown(sx, sy) as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+          onMouseEnter={(e) => {
+            const c = e.target.getStage()?.container()
+            if (c) c.style.cursor = CURSORS[`${sx},${sy}`]
+          }}
+          onMouseLeave={(e) => {
+            const c = e.target.getStage()?.container()
+            if (c) c.style.cursor = ''
+          }}
+        />
+      ))}
+    </Group>
+  )
+}
+
+/**
+ * Grips for whatever is selected, drawn on top of everything else so a wall or
+ * a neighbouring item can never swallow the click.
+ */
+export function SelectionGrips({
+  floor,
+  selection,
+  scale,
+  onItemResize,
+  onRoomResize,
+}: {
+  floor: Floor
+  selection: Selection | null
+  scale: number
+  onItemResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
+  onRoomResize: (id: string) => (sx: number, sy: number) => (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  if (!selection) return null
+
+  if (selection.kind === 'item') {
+    const item = floor.items.find((i) => i.id === selection.id)
+    if (!item) return null
+    return (
+      <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
+        <ResizeHandles hw={item.w / 2} hd={item.d / 2} scale={scale} onDown={onItemResize(item.id)} />
+      </Group>
+    )
+  }
+
+  if (selection.kind === 'room') {
+    const room = floor.rooms.find((r) => r.id === selection.id)
+    if (!room) return null
+    const pts = roomPoints(floor, room)
+    if (pts.length < 3) return null
+    const b = polygonBounds(pts)
+    return (
+      <Group x={(b.minX + b.maxX) / 2} y={(b.minY + b.maxY) / 2}>
+        <ResizeHandles hw={(b.maxX - b.minX) / 2} hd={(b.maxY - b.minY) / 2} scale={scale} onDown={onRoomResize(room.id)} />
+      </Group>
+    )
+  }
+
+  return null
+}
+
+/* ------------------------------------------------------------------ */
 /* measures + corners                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -603,10 +726,24 @@ export function PathDraft({
   )
 }
 
-export function ItemGhost({ kind, at }: { kind: string; at: { x: number; y: number } }) {
+export function ItemGhost({
+  kind,
+  at,
+  floor,
+  snapWalls,
+}: {
+  kind: string
+  at: { x: number; y: number }
+  floor?: Floor
+  snapWalls?: boolean
+}) {
   const def = catalogItem(kind)
+  const placed =
+    snapWalls && floor
+      ? (snapToWallFace(floor, { x: at.x, y: at.y, w: def.w, d: def.d, rot: 0 }) ?? { ...at, rot: 0 })
+      : { ...at, rot: 0 }
   return (
-    <Group listening={false} x={at.x} y={at.y} opacity={0.6}>
+    <Group listening={false} x={placed.x} y={placed.y} rotation={(placed.rot * 180) / Math.PI} opacity={0.6}>
       <Rect
         x={-def.w / 2}
         y={-def.d / 2}

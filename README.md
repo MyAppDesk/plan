@@ -10,7 +10,15 @@ Everything runs client-side. Your plan is saved in the browser and can be export
 - **Rooms (estancias)** — rectangular rooms by dragging, or free polygons corner by corner. Each room has a
   name, colour, its own ceiling height, and live area / perimeter / volume figures.
 - **Walls** — every edge is a real wall with its own thickness and height. Type an exact length and the wall
-  resizes. Corners weld together, so neighbouring rooms share a single wall.
+  resizes. Corners weld together, so neighbouring rooms share a single wall. Double-click a wall to drop a
+  corner on it and bend the run around a column or a recess.
+- **Low walls** — give any wall its own height for a terrace parapet, a half wall or a kerb. Presets are one
+  click away, and low walls are drawn dashed on the plan with their height next to the length.
+- **Resize grips** — the usual eight handles around the selection: drag to resize a room's outline or a piece
+  of furniture, anchored on the opposite side.
+- **Wall snapping** — furniture lands against the *face* of a wall (its thickness is respected, so nothing
+  ends up buried inside it) and lines up with the wall when it is roughly parallel. Optional, toggled with
+  `H`.
 - **Doors & windows** — click a wall to place one, drag it along the wall, then set width, height, sill
   height, hinge side and swing direction. Openings are cut out of the 3D walls.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
@@ -30,7 +38,7 @@ Everything runs client-side. Your plan is saved in the browser and can be export
 | `1` `2` `3` | Plan · 3D · Walk |
 | `V` `R` `P` `W` | Select · Rectangular room · Polygon room · Wall |
 | `D` `N` `I` `M` `X` | Door · Window · Furniture · Tape measure · Delete |
-| `F` `G` | Zoom to fit · Toggle grid snapping |
+| `F` `G` `H` | Zoom to fit · Grid snapping · Snap furniture to walls |
 | `Ctrl/⌘ Z` | Undo (add `Shift` to redo) |
 | `Del` `C` | Delete / duplicate the selection |
 | `Shift` | Constrain to horizontal / vertical while drawing |

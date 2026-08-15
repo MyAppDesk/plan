@@ -14,8 +14,10 @@ const SECTIONS = [
     title: 'Edit',
     rows: [
       ['V', 'Select and drag corners, walls, rooms, openings and furniture'],
+      ['—', 'Drag the eight grips around a room or a piece of furniture to resize it'],
       ['—', 'The right panel edits exact lengths, thicknesses, heights and sizes'],
       ['—', 'Changing a wall length moves its far corner along the wall'],
+      ['2×', 'Double-click a wall to drop a corner on it, then drag it out to bend the run'],
       ['Del', 'Delete the selection · C duplicates it'],
       ['Ctrl+Z', 'Undo · Ctrl+Shift+Z redo'],
     ],
@@ -27,6 +29,15 @@ const SECTIONS = [
       ['N', 'Window: same, with an editable sill height'],
       ['I', 'Place the item selected in the Catalog tab'],
       ['M', 'Tape measure between any two points'],
+    ],
+  },
+  {
+    title: 'Walls',
+    rows: [
+      ['—', 'Each wall has its own thickness and height'],
+      ['—', 'Give a wall a low height for a terrace parapet, a half wall or a kerb'],
+      ['—', 'Low walls are drawn dashed on the plan with their height beside the length'],
+      ['—', 'Furniture stops at the face of a wall, never inside it (H toggles this)'],
     ],
   },
   {
@@ -42,6 +53,7 @@ const SECTIONS = [
     rows: [
       ['F', 'Zoom to fit'],
       ['G', 'Toggle grid snapping'],
+      ['H', 'Toggle furniture snapping against wall faces'],
       ['Shift', 'While drawing: constrain to horizontal / vertical'],
       ['Space', 'Hold and drag to pan with any tool'],
     ],
