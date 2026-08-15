@@ -1,32 +1,57 @@
-# React + TypeScript + Vite
+# Measure — Floor Plan Studio
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Draw a flat to scale in the browser, measure every room, hang doors and windows on the walls, drop in
+furniture, then look at it in 3D and walk through it at eye height.
 
-Currently, two official plugins are available:
+Everything runs client-side. Your plan is saved in the browser and can be exported as JSON or PNG.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **Rooms (estancias)** — rectangular rooms by dragging, or free polygons corner by corner. Each room has a
+  name, colour, its own ceiling height, and live area / perimeter / volume figures.
+- **Walls** — every edge is a real wall with its own thickness and height. Type an exact length and the wall
+  resizes. Corners weld together, so neighbouring rooms share a single wall.
+- **Doors & windows** — click a wall to place one, drag it along the wall, then set width, height, sill
+  height, hinge side and swing direction. Openings are cut out of the 3D walls.
+- **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.
+  Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
+  No external assets to download.
+- **Tape measure** — measure any two points on the plan.
+- **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
+- **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
+- **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls. You can
+  walk through doorways; window sills stop you.
+- **Undo / redo**, grid snapping, alignment guides, autosave, JSON import/export, PNG export.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Keyboard
 
-## Expanding the Oxlint configuration
+| Key | Action |
+| --- | --- |
+| `1` `2` `3` | Plan · 3D · Walk |
+| `V` `R` `P` `W` | Select · Rectangular room · Polygon room · Wall |
+| `D` `N` `I` `M` `X` | Door · Window · Furniture · Tape measure · Delete |
+| `F` `G` | Zoom to fit · Toggle grid snapping |
+| `Ctrl/⌘ Z` | Undo (add `Shift` to redo) |
+| `Del` `C` | Delete / duplicate the selection |
+| `Shift` | Constrain to horizontal / vertical while drawing |
+| `Space` + drag | Pan with any tool |
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+## Development
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev      # local dev server
+npm run build    # type-check + production build into dist/
+npm run preview  # serve the production build
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Deployment
+
+Pushing to `main` builds and publishes to GitHub Pages via `.github/workflows/deploy.yml`
+(Settings → Pages → Source: **GitHub Actions**). The Vite `base` is relative, so the build also works from any
+sub-path or static host.
+
+## Stack
+
+React 19 + TypeScript + Vite, Zustand (with zundo for history), react-konva for the 2D plan,
+react-three-fiber / three.js for the 3D view and walkthrough, Tailwind CSS v4, lucide icons.

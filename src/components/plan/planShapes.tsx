@@ -1,0 +1,661 @@
+import { Arc, Circle, Group, Line, Rect, Shape, Text } from 'react-konva'
+import type { KonvaEventObject } from 'konva/lib/Node'
+import type { Floor, Item, Measure, Opening, Room, Selection, Wall } from '../../types'
+import { catalogItem } from '../../lib/catalog'
+import {
+  angleOf,
+  dist,
+  formatArea,
+  formatLen,
+  polygonArea,
+  polygonCentroid,
+  pointMap,
+  roomArea,
+  roomPoints,
+  wallEnds,
+} from '../../lib/geometry'
+
+export const C = {
+  wall: '#c9d2e2',
+  wallSelected: '#4f8cff',
+  wallHover: '#8fb4ff',
+  bg: '#0e121a',
+  grid: '#182031',
+  gridStrong: '#212a3d',
+  axis: '#2f3c56',
+  dim: '#7d879b',
+  dimStrong: '#a6b0c3',
+  item: '#8b95a8',
+  itemFill: 'rgba(125,135,155,0.16)',
+  accent: '#4f8cff',
+  door: '#7fd1a8',
+  window: '#6fc3ff',
+  measure: '#ffb347',
+  ghost: 'rgba(79,140,255,0.5)',
+}
+
+const isSel = (sel: Selection | null, kind: Selection['kind'], id: string) => sel?.kind === kind && sel.id === id
+
+/* ------------------------------------------------------------------ */
+/* text that keeps a constant on-screen size                           */
+/* ------------------------------------------------------------------ */
+
+export function Label({
+  x,
+  y,
+  text,
+  scale,
+  color = C.dim,
+  size = 11,
+  bold,
+  rotation = 0,
+  bg,
+  listening = false,
+}: {
+  x: number
+  y: number
+  text: string
+  scale: number
+  color?: string
+  size?: number
+  bold?: boolean
+  rotation?: number
+  bg?: string
+  listening?: boolean
+}) {
+  const width = Math.max(28, text.length * size * 0.62 + 8)
+  return (
+    <Group x={x} y={y} scaleX={1 / scale} scaleY={1 / scale} rotation={rotation} listening={listening}>
+      {bg ? <Rect x={-width / 2} y={-size * 0.82} width={width} height={size * 1.6} fill={bg} cornerRadius={3} /> : null}
+      <Text
+        text={text}
+        fontSize={size}
+        fontStyle={bold ? '600' : 'normal'}
+        fontFamily="Inter, system-ui, sans-serif"
+        fill={color}
+        width={width}
+        offsetX={width / 2}
+        offsetY={size * 0.55}
+        align="center"
+        listening={false}
+      />
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* grid                                                                */
+/* ------------------------------------------------------------------ */
+
+export function GridShape({ view, size }: { view: { x: number; y: number; scale: number; w: number; h: number }; size: number }) {
+  return (
+    <Shape
+      listening={false}
+      sceneFunc={(ctx) => {
+        const { scale } = view
+        const minX = -view.x / scale
+        const minY = -view.y / scale
+        const maxX = minX + view.w / scale
+        const maxY = minY + view.h / scale
+        // adapt the grid step so lines never get denser than ~8 px
+        let step = size
+        while (step * scale < 8) step *= 5
+        const major = step * 10
+        const lw = 1 / scale
+
+        const draw = (s: number, color: string) => {
+          ctx.beginPath()
+          for (let x = Math.floor(minX / s) * s; x <= maxX; x += s) {
+            ctx.moveTo(x, minY)
+            ctx.lineTo(x, maxY)
+          }
+          for (let y = Math.floor(minY / s) * s; y <= maxY; y += s) {
+            ctx.moveTo(minX, y)
+            ctx.lineTo(maxX, y)
+          }
+          ctx.strokeStyle = color
+          ctx.lineWidth = lw
+          ctx.stroke()
+        }
+
+        draw(step, C.grid)
+        draw(major, C.gridStrong)
+
+        ctx.beginPath()
+        ctx.moveTo(minX, 0)
+        ctx.lineTo(maxX, 0)
+        ctx.moveTo(0, minY)
+        ctx.lineTo(0, maxY)
+        ctx.strokeStyle = C.axis
+        ctx.lineWidth = lw * 1.5
+        ctx.stroke()
+      }}
+    />
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* rooms                                                               */
+/* ------------------------------------------------------------------ */
+
+export function RoomShape({
+  floor,
+  room,
+  selected,
+  scale,
+  showDims,
+  onDown,
+}: {
+  floor: Floor
+  room: Room
+  selected: boolean
+  scale: number
+  showDims: boolean
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const pts = roomPoints(floor, room)
+  if (pts.length < 3) return null
+  const flat = pts.flatMap((p) => [p.x, p.y])
+  const c = polygonCentroid(pts)
+  const area = roomArea(floor, room)
+  return (
+    <Group>
+      <Line
+        points={flat}
+        closed
+        fill={selected ? '#2b3d5e' : room.color}
+        opacity={selected ? 0.95 : 0.8}
+        stroke={selected ? C.accent : 'transparent'}
+        strokeWidth={2}
+        strokeScaleEnabled={false}
+        onMouseDown={onDown}
+        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+      />
+      {showDims ? (
+        <>
+          <Label x={c.x} y={c.y - 0.16} text={room.name} scale={scale} color="#e3e8f2" size={12} bold />
+          <Label x={c.x} y={c.y + 0.16} text={formatArea(area)} scale={scale} color={C.dim} size={11} />
+        </>
+      ) : null}
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* walls                                                               */
+/* ------------------------------------------------------------------ */
+
+export function WallShape({
+  floor,
+  wall,
+  selected,
+  hovered,
+  scale,
+  showDims,
+  onDown,
+}: {
+  floor: Floor
+  wall: Wall
+  selected: boolean
+  hovered: boolean
+  scale: number
+  showDims: boolean
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const e = wallEnds(floor, wall)
+  if (!e) return null
+  const len = dist(e.a, e.b)
+  const ang = angleOf(e.a, e.b)
+  const mid = { x: (e.a.x + e.b.x) / 2, y: (e.a.y + e.b.y) / 2 }
+  const deg = (ang * 180) / Math.PI
+  const flip = deg > 90 || deg < -90
+  const off = wall.thickness / 2 + 0.14
+  const nx = Math.sin(ang) * (flip ? off : -off)
+  const ny = -Math.cos(ang) * (flip ? off : -off)
+
+  return (
+    <Group>
+      <Line
+        points={[e.a.x, e.a.y, e.b.x, e.b.y]}
+        stroke={selected ? C.wallSelected : hovered ? C.wallHover : C.wall}
+        strokeWidth={wall.thickness}
+        lineCap="butt"
+        hitStrokeWidth={Math.max(wall.thickness, 14 / scale)}
+        onMouseDown={onDown}
+        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+      />
+      {showDims && len > 0.35 ? (
+        <Label
+          x={mid.x + nx}
+          y={mid.y + ny}
+          rotation={flip ? deg + 180 : deg}
+          text={formatLen(len)}
+          scale={scale}
+          color={selected ? C.accent : C.dim}
+          size={10.5}
+        />
+      ) : null}
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* openings                                                            */
+/* ------------------------------------------------------------------ */
+
+export function OpeningShape({
+  floor,
+  opening,
+  selected,
+  scale,
+  onDown,
+}: {
+  floor: Floor
+  opening: Opening
+  selected: boolean
+  scale: number
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const wall = floor.walls.find((w) => w.id === opening.wallId)
+  if (!wall) return null
+  const e = wallEnds(floor, wall)
+  if (!e) return null
+  const ang = angleOf(e.a, e.b)
+  const cx = e.a.x + Math.cos(ang) * opening.offset
+  const cy = e.a.y + Math.sin(ang) * opening.offset
+  const t = wall.thickness
+  const color = selected ? C.accent : opening.kind === 'door' ? C.door : C.window
+  const w = opening.width
+  const dir = opening.flipHinge ? -1 : 1
+  const side = opening.flipSide ? -1 : 1
+
+  return (
+    <Group x={cx} y={cy} rotation={(ang * 180) / Math.PI}>
+      {/* punch the hole in the wall */}
+      <Rect x={-w / 2} y={-t / 2 - 0.005} width={w} height={t + 0.01} fill={C.bg} />
+      <Rect
+        x={-w / 2}
+        y={-t / 2}
+        width={w}
+        height={t}
+        stroke={color}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        fill="rgba(0,0,0,0.001)"
+        onMouseDown={onDown}
+        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+      />
+      {opening.kind === 'door' ? (
+        <>
+          <Line
+            points={[(dir * w) / 2, 0, (dir * w) / 2, side * w]}
+            stroke={color}
+            strokeWidth={1.5}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+          <Arc
+            x={(dir * w) / 2}
+            y={0}
+            innerRadius={w}
+            outerRadius={w}
+            angle={90}
+            rotation={side > 0 ? (dir > 0 ? 90 : 0) : dir > 0 ? 180 : 270}
+            stroke={color}
+            strokeWidth={1}
+            dash={[0.1, 0.08]}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+        </>
+      ) : (
+        <>
+          <Line
+            points={[-w / 2, -t / 6, w / 2, -t / 6]}
+            stroke={color}
+            strokeWidth={1.2}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+          <Line
+            points={[-w / 2, t / 6, w / 2, t / 6]}
+            stroke={color}
+            strokeWidth={1.2}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+        </>
+      )}
+      <Label x={0} y={-t / 2 - 0.16} text={formatLen(w)} scale={scale} color={color} size={9.5} />
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* furniture                                                           */
+/* ------------------------------------------------------------------ */
+
+export function ItemShape({
+  item,
+  selected,
+  scale,
+  showLabel,
+  onDown,
+  onRotateDown,
+}: {
+  item: Item
+  selected: boolean
+  scale: number
+  showLabel: boolean
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+  onRotateDown?: (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const def = catalogItem(item.kind)
+  const color = selected ? C.accent : C.item
+  const gx = (v: number) => -item.w / 2 + v * item.w
+  const gy = (v: number) => -item.d / 2 + v * item.d
+
+  return (
+    <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
+      <Rect
+        x={-item.w / 2}
+        y={-item.d / 2}
+        width={item.w}
+        height={item.d}
+        fill={selected ? 'rgba(79,140,255,0.18)' : C.itemFill}
+        stroke={color}
+        strokeWidth={selected ? 2 : 1.2}
+        strokeScaleEnabled={false}
+        cornerRadius={0.02}
+        onMouseDown={onDown}
+        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+      />
+      {def.glyph.map((g, i) => {
+        if (g.type === 'rect')
+          return (
+            <Rect
+              key={i}
+              x={gx(g.x)}
+              y={gy(g.y)}
+              width={g.w * item.w}
+              height={g.h * item.d}
+              stroke={color}
+              strokeWidth={1}
+              strokeScaleEnabled={false}
+              cornerRadius={(g.radius ?? 0) * Math.min(item.w, item.d) * 0.5}
+              listening={false}
+            />
+          )
+        if (g.type === 'circle')
+          return (
+            <Circle
+              key={i}
+              x={gx(g.x)}
+              y={gy(g.y)}
+              radius={g.r * Math.min(item.w, item.d)}
+              stroke={color}
+              strokeWidth={1}
+              strokeScaleEnabled={false}
+              listening={false}
+            />
+          )
+        return (
+          <Line
+            key={i}
+            points={g.points.map((v, idx) => (idx % 2 === 0 ? gx(v) : gy(v)))}
+            stroke={color}
+            strokeWidth={1}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+        )
+      })}
+      {showLabel ? (
+        <Label
+          x={0}
+          y={item.d / 2 + 0.16}
+          text={`${item.name} · ${item.w.toFixed(2)}×${item.d.toFixed(2)}`}
+          scale={scale}
+          color={selected ? C.accent : C.dim}
+          size={9.5}
+        />
+      ) : null}
+      {selected && onRotateDown ? (
+        <Group>
+          <Line
+            points={[0, -item.d / 2, 0, -item.d / 2 - 26 / scale]}
+            stroke={C.accent}
+            strokeWidth={1}
+            strokeScaleEnabled={false}
+            listening={false}
+          />
+          <Circle
+            x={0}
+            y={-item.d / 2 - 26 / scale}
+            radius={5 / scale}
+            fill={C.accent}
+            onMouseDown={onRotateDown}
+            onTouchStart={onRotateDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+          />
+        </Group>
+      ) : null}
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* measures + corners                                                  */
+/* ------------------------------------------------------------------ */
+
+export function MeasureShape({
+  m,
+  selected,
+  scale,
+  onDown,
+  onEndDown,
+}: {
+  m: Measure
+  selected: boolean
+  scale: number
+  onDown: (e: KonvaEventObject<MouseEvent>) => void
+  onEndDown: (end: 'a' | 'b') => (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  const a = { x: m.ax, y: m.ay }
+  const b = { x: m.bx, y: m.by }
+  const len = dist(a, b)
+  const ang = (angleOf(a, b) * 180) / Math.PI
+  const flip = ang > 90 || ang < -90
+  return (
+    <Group>
+      <Line
+        points={[m.ax, m.ay, m.bx, m.by]}
+        stroke={selected ? C.accent : C.measure}
+        strokeWidth={1.5}
+        dash={[0.16, 0.1]}
+        strokeScaleEnabled={false}
+        hitStrokeWidth={12 / scale}
+        onMouseDown={onDown}
+      />
+      {(['a', 'b'] as const).map((end) => (
+        <Circle
+          key={end}
+          x={end === 'a' ? m.ax : m.bx}
+          y={end === 'a' ? m.ay : m.by}
+          radius={4.5 / scale}
+          fill={C.measure}
+          onMouseDown={onEndDown(end)}
+        />
+      ))}
+      <Label
+        x={(m.ax + m.bx) / 2}
+        y={(m.ay + m.by) / 2 - 0.16}
+        rotation={flip ? ang + 180 : ang}
+        text={formatLen(len)}
+        scale={scale}
+        color={C.measure}
+        size={11}
+        bold
+        bg="rgba(14,18,26,0.85)"
+      />
+    </Group>
+  )
+}
+
+export function CornerHandles({
+  floor,
+  selection,
+  scale,
+  onDown,
+}: {
+  floor: Floor
+  selection: Selection | null
+  scale: number
+  onDown: (id: string) => (e: KonvaEventObject<MouseEvent>) => void
+}) {
+  return (
+    <Group>
+      {floor.points.map((p) => (
+        <Circle
+          key={p.id}
+          x={p.x}
+          y={p.y}
+          radius={(isSel(selection, 'point', p.id) ? 6 : 4) / scale}
+          fill={isSel(selection, 'point', p.id) ? C.accent : '#0e121a'}
+          stroke={C.wall}
+          strokeWidth={1.5}
+          strokeScaleEnabled={false}
+          onMouseDown={onDown(p.id)}
+          onTouchStart={onDown(p.id) as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      ))}
+    </Group>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* drafts / ghosts                                                     */
+/* ------------------------------------------------------------------ */
+
+export function RectDraft({ a, b, scale }: { a: { x: number; y: number }; b: { x: number; y: number }; scale: number }) {
+  const x = Math.min(a.x, b.x)
+  const y = Math.min(a.y, b.y)
+  const w = Math.abs(b.x - a.x)
+  const h = Math.abs(b.y - a.y)
+  return (
+    <Group listening={false}>
+      <Rect x={x} y={y} width={w} height={h} fill="rgba(79,140,255,0.12)" stroke={C.accent} strokeWidth={1.5} strokeScaleEnabled={false} dash={[0.2, 0.12]} />
+      <Label x={x + w / 2} y={y - 0.2} text={`${w.toFixed(2)} m`} scale={scale} color={C.accent} size={11} bold bg="rgba(14,18,26,0.85)" />
+      <Label x={x - 0.25} y={y + h / 2} rotation={-90} text={`${h.toFixed(2)} m`} scale={scale} color={C.accent} size={11} bold bg="rgba(14,18,26,0.85)" />
+      <Label x={x + w / 2} y={y + h / 2} text={formatArea(w * h)} scale={scale} color="#cfd8ea" size={11} />
+    </Group>
+  )
+}
+
+export function PathDraft({
+  pts,
+  cursor,
+  closed,
+  scale,
+  thickness,
+}: {
+  pts: { x: number; y: number }[]
+  cursor: { x: number; y: number } | null
+  closed: boolean
+  scale: number
+  thickness: number
+}) {
+  const all = cursor ? [...pts, cursor] : pts
+  if (!all.length) return null
+  const flat = all.flatMap((p) => [p.x, p.y])
+  const last = all[all.length - 1]
+  const prev = all[all.length - 2]
+  return (
+    <Group listening={false}>
+      <Line points={flat} closed={closed} stroke={C.ghost} strokeWidth={thickness} lineCap="butt" />
+      <Line points={flat} closed={closed} stroke={C.accent} strokeWidth={1.5} strokeScaleEnabled={false} />
+      {all.map((p, i) => (
+        <Circle key={i} x={p.x} y={p.y} radius={4 / scale} fill={C.accent} />
+      ))}
+      {prev && last ? (
+        <Label
+          x={(prev.x + last.x) / 2}
+          y={(prev.y + last.y) / 2 - 0.22}
+          text={formatLen(dist(prev, last))}
+          scale={scale}
+          color={C.accent}
+          size={11}
+          bold
+          bg="rgba(14,18,26,0.85)"
+        />
+      ) : null}
+      {closed && all.length > 2 ? (
+        <Label
+          x={polygonCentroid(all).x}
+          y={polygonCentroid(all).y}
+          text={formatArea(polygonArea(all))}
+          scale={scale}
+          color="#cfd8ea"
+          size={11}
+          bg="rgba(14,18,26,0.85)"
+        />
+      ) : null}
+    </Group>
+  )
+}
+
+export function ItemGhost({ kind, at }: { kind: string; at: { x: number; y: number } }) {
+  const def = catalogItem(kind)
+  return (
+    <Group listening={false} x={at.x} y={at.y} opacity={0.6}>
+      <Rect
+        x={-def.w / 2}
+        y={-def.d / 2}
+        width={def.w}
+        height={def.d}
+        fill="rgba(79,140,255,0.15)"
+        stroke={C.accent}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+        dash={[0.14, 0.1]}
+      />
+    </Group>
+  )
+}
+
+export function OpeningGhost({
+  floor,
+  wallId,
+  offset,
+  kind,
+}: {
+  floor: Floor
+  wallId: string
+  offset: number
+  kind: 'door' | 'window'
+}) {
+  const wall = floor.walls.find((w) => w.id === wallId)
+  if (!wall) return null
+  const e = wallEnds(floor, wall, pointMap(floor))
+  if (!e) return null
+  const ang = angleOf(e.a, e.b)
+  const w = kind === 'door' ? 0.8 : 1.2
+  return (
+    <Group
+      listening={false}
+      x={e.a.x + Math.cos(ang) * offset}
+      y={e.a.y + Math.sin(ang) * offset}
+      rotation={(ang * 180) / Math.PI}
+    >
+      <Rect
+        x={-w / 2}
+        y={-wall.thickness / 2 - 0.01}
+        width={w}
+        height={wall.thickness + 0.02}
+        fill="rgba(79,140,255,0.35)"
+        stroke={C.accent}
+        strokeWidth={1.5}
+        strokeScaleEnabled={false}
+      />
+    </Group>
+  )
+}
