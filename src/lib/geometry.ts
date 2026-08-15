@@ -575,6 +575,34 @@ export function footprintCorners(it: { x: number; y: number; w: number; d: numbe
   ].map(([lx, ly]) => ({ x: it.x + lx * cos - ly * sin, y: it.y + lx * sin + ly * cos }))
 }
 
+/** Footprint outline in local space, taking any notch into account. */
+export function itemOutlineLocal(item: { w: number; d: number; notch?: { depth: number; left: number; right: number } }): Vec[] {
+  const hw = item.w / 2
+  const hd = item.d / 2
+  const n = item.notch
+  if (!n || n.depth <= 0.01 || (n.left <= 0.01 && n.right <= 0.01)) {
+    return [
+      { x: -hw, y: -hd },
+      { x: hw, y: -hd },
+      { x: hw, y: hd },
+      { x: -hw, y: hd },
+    ]
+  }
+  const depth = Math.min(n.depth, item.d)
+  const left = Math.min(n.left, item.w)
+  const right = Math.min(n.right, item.w - left)
+  return [
+    { x: -hw + left, y: -hd },
+    { x: hw - right, y: -hd },
+    { x: hw - right, y: -hd + depth },
+    { x: hw, y: -hd + depth },
+    { x: hw, y: hd },
+    { x: -hw, y: hd },
+    { x: -hw, y: -hd + depth },
+    { x: -hw + left, y: -hd + depth },
+  ]
+}
+
 export function stairsOf(floor: Floor): Item[] {
   return floor.items.filter((i) => isStair(i.kind))
 }

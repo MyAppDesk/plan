@@ -32,6 +32,10 @@ export interface GlyphCircle {
 }
 export type Glyph = GlyphRect | GlyphLine | GlyphCircle
 
+export interface Notchable {
+  notch?: { depth: number; left: number; right: number }
+}
+
 export interface CatalogItem {
   kind: string
   name: string
@@ -43,7 +47,7 @@ export interface CatalogItem {
   /** default distance from the floor (wall units, shelves…) */
   z?: number
   glyph: Glyph[]
-  build: (p: { w: number; d: number; h: number; color: string }) => ReactNode
+  build: (p: { w: number; d: number; h: number; color: string } & Notchable) => ReactNode
 }
 
 function B({
@@ -212,19 +216,28 @@ export const CATALOG: CatalogItem[] = [
       { type: 'line', points: [0.03, 0.03, 0.97, 0.97] },
       { type: 'line', points: [0.03, 0.97, 0.97, 0.03] },
     ],
-    build: ({ w, d, h, color }) => (
-      <group>
-        {/* the box itself: a cupboard tucked up near the ceiling */}
-        <B p={[0, h / 2, 0]} s={[w, h, d]} color={color} />
-        {/* two doors on the open face */}
-        {[-1, 1].map((sx) => (
-          <B key={sx} p={[(sx * w) / 4, h / 2, d / 2 + 0.012]} s={[w / 2 - 0.03, h - 0.05, 0.02]} color="#9c8464" />
-        ))}
-        {[-1, 1].map((sx) => (
-          <B key={`h${sx}`} p={[sx * 0.04, h / 2, d / 2 + 0.03]} s={[0.02, 0.14, 0.02]} color="#cfd4de" metal={0.8} rough={0.3} />
-        ))}
-      </group>
-    ),
+    build: ({ w, d, h, color, notch }) => {
+      const n = notch && notch.depth > 0.01 ? notch : null
+      const backW = n ? Math.max(0.05, w - n.left - n.right) : w
+      const backD = n ? Math.min(n.depth, d) : 0
+      const frontD = d - backD
+      return (
+        <group>
+          {/* the part that wraps around whatever is behind it */}
+          {n && backD > 0.01 ? (
+            <B p={[(n.left - n.right) / 2, h / 2, -d / 2 + backD / 2]} s={[backW, h, backD]} color={color} />
+          ) : null}
+          <B p={[0, h / 2, d / 2 - frontD / 2]} s={[w, h, frontD]} color={color} />
+          {/* two doors on the open face */}
+          {[-1, 1].map((sx) => (
+            <B key={sx} p={[(sx * w) / 4, h / 2, d / 2 + 0.012]} s={[w / 2 - 0.03, h - 0.05, 0.02]} color="#9c8464" />
+          ))}
+          {[-1, 1].map((sx) => (
+            <B key={`h${sx}`} p={[sx * 0.04, h / 2, d / 2 + 0.03]} s={[0.02, 0.14, 0.02]} color="#cfd4de" metal={0.8} rough={0.3} />
+          ))}
+        </group>
+      )
+    },
   },
   {
     kind: 'loft',

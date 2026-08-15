@@ -469,7 +469,13 @@ function Items({ floor, pick, selection }: { floor: Floor; pick: Pick; selection
             rotation={[0, -item.rot, 0]}
             onPointerDown={pick({ kind: 'item', id: item.id })}
           >
-            {catalogItem(item.kind).build({ w: item.w, d: item.d, h: item.h, color: item.color })}
+            {catalogItem(item.kind).build({
+              w: item.w,
+              d: item.d,
+              h: item.h,
+              color: item.color,
+              notch: item.notch,
+            })}
             {selected ? (
               <mesh position={[0, item.h / 2, 0]}>
                 <boxGeometry args={[item.w * 1.03, item.h * 1.03, item.d * 1.03]} />

@@ -78,6 +78,18 @@ export interface Opening {
   doorType: DoorType
 }
 
+/**
+ * A bite taken out of the back edge of an item's footprint, so a loft can wrap
+ * around a room instead of sitting on top of it.
+ */
+export interface Notch {
+  /** how far in from the back edge the bite goes */
+  depth: number
+  /** how much is cut off the left and the right within that depth */
+  left: number
+  right: number
+}
+
 export interface Item {
   id: ID
   /** catalog key */
@@ -94,6 +106,7 @@ export interface Item {
   /** distance from the floor to the item base */
   z: number
   color: string
+  notch?: Notch
 }
 
 export interface Measure {

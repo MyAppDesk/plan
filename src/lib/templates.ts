@@ -591,7 +591,7 @@ export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
 
   /* -------------------------------- doors -------------------------------- */
   // the two bedrooms face each other across the hall
-  placeOpening(g, { x: bed1R, y: laundryB }, { x: bed1R, y: BAND }, 'door', 0.5, 0.8)
+  placeOpening(g, { x: bed1R, y: laundryB }, { x: bed1R, y: BAND }, 'door', 0.48, 0.85)
   placeOpening(g, { x: hallR, y: alcoveB }, { x: hallR, y: BAND }, 'door', 0.55, 0.8, { flipHinge: true })
   // bathroom off the hall
   placeOpening(g, { x: laundryR, y: bathB }, { x: bathR, y: bathB }, 'door', 0.7, 0.75)
@@ -629,11 +629,19 @@ export function balconyFlat(opts: Partial<HomeOptions> = {}): Project {
     styleWall(g, a, b, { style: 'railing', height: 1.1, thickness: 0.08 })
 
   /* -------------------------------- altillo ------------------------------- */
-  // one storage loft, running from bedroom 1's doorway across the hall to
-  // bedroom 2's, at 2.05 m and filling up to the ceiling
-  const altillo = addItem(g, 'loft-box', (bed1R + hallR) / 2, 3.03)
-  altillo.w = hallR - bed1R
-  altillo.d = 1.15
+  // one storage loft covering the whole hall: the passage between the two
+  // bedroom doors and the bit in front of the laundry, wrapping around the
+  // laundry and bedroom 2's alcove rather than sitting on top of them
+  const altilloTop = bathB // 1.10 — the bathroom wall
+  const altilloBottom = BAND // 3.66
+  const altillo = addItem(g, 'loft-box', (bed1R + hallR) / 2, (altilloTop + altilloBottom) / 2)
+  altillo.w = hallR - bed1R // 4.40 → 7.40
+  altillo.d = altilloBottom - altilloTop // 1.10 → 3.66
+  altillo.notch = {
+    depth: laundryB - bathB, // down to the laundry's front wall
+    left: laundryR - bed1R, // clear of the laundry itself
+    right: hallR - bathR, // clear of bedroom 2's alcove
+  }
   altillo.z = 2.05
   altillo.h = Math.max(0.3, o.ceiling - 2.05)
   altillo.name = 'Altillo'

@@ -657,6 +657,51 @@ function OverheadInfo({ item }: { item: Item }) {
       >
         Standard altillo — 2.05 m up, filling to the ceiling
       </button>
+      <div>
+        <span className="field-label">Cut-out along the back edge</span>
+        <Row cols={3}>
+          <NumberField
+            label="Depth"
+            value={item.notch?.depth ?? 0}
+            step={0.05}
+            min={0}
+            max={item.d}
+            onChange={(depth) =>
+              useProject.getState().updateItem(item.id, {
+                notch: { left: 0, right: 0, ...item.notch, depth },
+              })
+            }
+          />
+          <NumberField
+            label="Left"
+            value={item.notch?.left ?? 0}
+            step={0.05}
+            min={0}
+            max={item.w}
+            onChange={(left) =>
+              useProject.getState().updateItem(item.id, {
+                notch: { depth: 0, right: 0, ...item.notch, left },
+              })
+            }
+          />
+          <NumberField
+            label="Right"
+            value={item.notch?.right ?? 0}
+            step={0.05}
+            min={0}
+            max={item.w}
+            onChange={(right) =>
+              useProject.getState().updateItem(item.id, {
+                notch: { depth: 0, left: 0, ...item.notch, right },
+              })
+            }
+          />
+        </Row>
+        <p className="mt-1 text-[11px] leading-relaxed text-mist-400">
+          Takes a bite out of the back of the footprint, so the loft can wrap around a room — over the hall and
+          in front of a cupboard without covering it.
+        </p>
+      </div>
       <p className="text-[11px] leading-relaxed text-mist-400">
         Drawn dotted on the plan because it is above head height, and you walk underneath it in walk mode.
       </p>

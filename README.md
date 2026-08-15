@@ -41,7 +41,9 @@ listed under the project name in the toolbar.
 - **Doors & windows** — click a wall to place one, drag it along the wall, then set width, height, sill
   height, hinge side and swing direction. Doors can be hinged, **sliding**, or a **cased opening** with no leaf
   at all.
-- **Altillos** — storage up at head height, either an open loft deck or a closed box with doors. Both are
+- **Altillos** — storage up at head height, either an open loft deck or a closed box with doors. The back edge
+  takes a cut-out, so one loft can wrap around a room — over a hall and in front of a cupboard without covering
+  it. Both are
   drawn dotted on the plan with their underside and top, and you walk underneath them. Openings are cut out of the 3D
   walls.
 - **Furniture** — a catalogue of beds, wardrobes, sofas, kitchen units, sanitary ware, desks, stairs and more.

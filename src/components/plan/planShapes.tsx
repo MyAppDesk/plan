@@ -6,6 +6,7 @@ import { isStair, stairLayout } from '../../lib/stairs'
 import {
   angleOf,
   dist,
+  itemOutlineLocal,
   formatArea,
   formatLen,
   polygonArea,
@@ -547,20 +548,34 @@ export function ItemShape({
 
   return (
     <Group x={item.x} y={item.y} rotation={(item.rot * 180) / Math.PI}>
-      <Rect
-        x={-item.w / 2}
-        y={-item.d / 2}
-        width={item.w}
-        height={item.d}
-        fill={selected ? 'rgba(79,140,255,0.18)' : overhead ? 'rgba(201,168,106,0.12)' : C.itemFill}
-        stroke={selected ? color : overhead ? C.wallOverhead : color}
-        strokeWidth={selected ? 2 : 1.2}
-        strokeScaleEnabled={false}
-        dash={overhead ? [0.12, 0.1] : undefined}
-        cornerRadius={0.02}
-        onMouseDown={onDown}
-        onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
-      />
+      {item.notch && item.notch.depth > 0.01 ? (
+        <Line
+          points={itemOutlineLocal(item).flatMap((p) => [p.x, p.y])}
+          closed
+          fill={selected ? 'rgba(79,140,255,0.18)' : overhead ? 'rgba(201,168,106,0.12)' : C.itemFill}
+          stroke={selected ? color : overhead ? C.wallOverhead : color}
+          strokeWidth={selected ? 2 : 1.2}
+          strokeScaleEnabled={false}
+          dash={overhead ? [0.12, 0.1] : undefined}
+          onMouseDown={onDown}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      ) : (
+        <Rect
+          x={-item.w / 2}
+          y={-item.d / 2}
+          width={item.w}
+          height={item.d}
+          fill={selected ? 'rgba(79,140,255,0.18)' : overhead ? 'rgba(201,168,106,0.12)' : C.itemFill}
+          stroke={selected ? color : overhead ? C.wallOverhead : color}
+          strokeWidth={selected ? 2 : 1.2}
+          strokeScaleEnabled={false}
+          dash={overhead ? [0.12, 0.1] : undefined}
+          cornerRadius={0.02}
+          onMouseDown={onDown}
+          onTouchStart={onDown as unknown as (e: KonvaEventObject<TouchEvent>) => void}
+        />
+      )}
       {stair
         ? [
             ...stair.steps.map((st, i) => {
