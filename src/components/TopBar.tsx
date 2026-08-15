@@ -17,12 +17,13 @@ import {
 import { useStore } from 'zustand'
 import { useProject, redo, undo } from '../store/useProject'
 import { emit } from '../lib/bus'
+import { Tip } from './ui/Tip'
 import type { ViewMode } from '../types'
 
-const VIEWS: { value: ViewMode; label: string; icon: typeof Box; hint: string }[] = [
-  { value: '2d', label: 'Plan', icon: Grid2x2, hint: 'Plan view (1)' },
-  { value: '3d', label: '3D', icon: Box, hint: '3D view (2)' },
-  { value: 'walk', label: 'Walk', icon: Footprints, hint: 'Walk through (3)' },
+const VIEWS: { value: ViewMode; label: string; icon: typeof Box; hint: string; key: string }[] = [
+  { value: '2d', label: 'Plan', icon: Grid2x2, hint: 'Plan view', key: '1' },
+  { value: '3d', label: '3D', icon: Box, hint: '3D view', key: '2' },
+  { value: 'walk', label: 'Walk', icon: Footprints, hint: 'Walk through', key: '3' },
 ]
 
 export function TopBar({
@@ -64,17 +65,17 @@ export function TopBar({
         {VIEWS.map((v) => {
           const Icon = v.icon
           return (
-            <button
-              key={v.value}
-              title={v.hint}
-              onClick={() => setView(v.value)}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors ${
-                view === v.value ? 'bg-accent-soft text-mist-200' : 'text-mist-400 hover:text-mist-200'
-              }`}
-            >
-              <Icon size={15} />
-              <span className="hidden sm:inline">{v.label}</span>
-            </button>
+            <Tip key={v.value} label={v.hint} hint={v.key} side="bottom">
+              <button
+                onClick={() => setView(v.value)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 transition-colors ${
+                  view === v.value ? 'bg-accent-soft text-mist-200' : 'text-mist-400 hover:text-mist-200'
+                }`}
+              >
+                <Icon size={15} />
+                <span className="hidden sm:inline">{v.label}</span>
+              </button>
+            </Tip>
           )
         })}
       </div>
@@ -91,51 +92,71 @@ export function TopBar({
             {f.name}
           </button>
         ))}
-        <button className="icon-btn" title="Add floor" onClick={() => addFloor(false)}>
+        <Tip label="Add floor" side="bottom">
+          <button className="icon-btn" aria-label="Add floor" onClick={() => addFloor(false)}>
           <Plus size={16} />
         </button>
+        </Tip>
       </div>
 
       <div className="flex-1" />
 
       <div className="flex items-center gap-0.5">
-        <button className="icon-btn" title="Undo (Ctrl+Z)" disabled={!canUndo} onClick={() => undo()}>
+        <Tip label="Undo" hint="Ctrl+Z" side="bottom">
+          <button className="icon-btn" aria-label="Undo" disabled={!canUndo} onClick={() => undo()}>
           <Undo2 size={16} />
         </button>
-        <button className="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled={!canRedo} onClick={() => redo()}>
+        </Tip>
+        <Tip label="Redo" hint="Ctrl+Shift+Z" side="bottom">
+          <button className="icon-btn" aria-label="Redo" disabled={!canRedo} onClick={() => redo()}>
           <Redo2 size={16} />
         </button>
+        </Tip>
         <span className="mx-1 h-5 w-px bg-ink-700" />
-        <button
-          className={`icon-btn ${snap ? 'is-active' : ''}`}
-          title="Snap to grid (G)"
-          onClick={() => toggleUi('snap')}
-        >
-          <Magnet size={16} />
-        </button>
-        <button
-          className={`icon-btn ${snapWalls ? 'is-active' : ''}`}
-          title="Snap furniture to wall faces (H)"
-          onClick={() => toggleUi('snapWalls')}
-        >
-          <PanelsTopLeft size={16} />
-        </button>
-        <button className="icon-btn" title="Zoom to fit (F)" onClick={() => emit('fit')}>
+        <Tip label="Snap to grid" hint="G" side="bottom">
+          <button
+            className={`icon-btn ${snap ? 'is-active' : ''}`}
+            aria-label="Snap to grid"
+            onClick={() => toggleUi('snap')}
+          >
+            <Magnet size={16} />
+          </button>
+        </Tip>
+        <Tip label="Snap to wall faces" hint="H" side="bottom">
+          <button
+            className={`icon-btn ${snapWalls ? 'is-active' : ''}`}
+            aria-label="Snap furniture to wall faces"
+            onClick={() => toggleUi('snapWalls')}
+          >
+            <PanelsTopLeft size={16} />
+          </button>
+        </Tip>
+        <Tip label="Zoom to fit" hint="F" side="bottom">
+          <button className="icon-btn" aria-label="Zoom to fit" onClick={() => emit('fit')}>
           <Maximize size={16} />
         </button>
+        </Tip>
         <span className="mx-1 h-5 w-px bg-ink-700" />
-        <button className="icon-btn" title="Import project" onClick={onImport}>
+        <Tip label="Import project" side="bottom">
+          <button className="icon-btn" aria-label="Import project" onClick={onImport}>
           <FolderOpen size={16} />
         </button>
-        <button className="icon-btn" title="Export project (JSON)" onClick={onExport}>
+        </Tip>
+        <Tip label="Export project (JSON)" side="bottom">
+          <button className="icon-btn" aria-label="Export project (JSON)" onClick={onExport}>
           <Download size={16} />
         </button>
-        <button className="icon-btn" title="Export plan as PNG" onClick={() => emit('png')}>
+        </Tip>
+        <Tip label="Export plan as PNG" side="bottom">
+          <button className="icon-btn" aria-label="Export plan as PNG" onClick={() => emit('png')}>
           <ImageIcon size={16} />
         </button>
-        <button className="icon-btn" title="Help (?)" onClick={onHelp}>
+        </Tip>
+        <Tip label="Help" hint="?" side="bottom">
+          <button className="icon-btn" aria-label="Help" onClick={onHelp}>
           <HelpCircle size={16} />
         </button>
+        </Tip>
       </div>
     </header>
   )

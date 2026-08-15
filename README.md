@@ -32,8 +32,8 @@ Everything runs client-side. Your plan is saved in the browser and can be export
   Every piece is generated from its width / depth / height, so any size you type is correct in both 2D and 3D.
   No external assets to download.
 - **Tape measure** — measure any two points on the plan.
-- **Sample flat** — ships with a small flat, terrace included, so there is something to walk through
-  immediately (Settings → Reset to sample flat).
+- **Sample flat** — ships with a small flat: terrace with a parapet and two round columns, a half wall
+  screening the shower, a beam across the living room and a service duct (Settings → Reset to sample flat).
 - **Multiple floors** — add or duplicate floors, each with its own elevation and ceiling height.
 - **3D preview** — orbit around the model with real doors, glazed windows, shadows and optional ceilings.
 - **Walk simulation** — first-person mouse-look with WASD, run, crouch, and collision against walls. You can

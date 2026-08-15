@@ -7,7 +7,7 @@ const HINTS: Record<Tool, string> = {
   select: 'Drag to move · Shift-drag a wall to extrude it · double-click a wall to add a corner · grips resize',
   room: 'Drag to draw a rectangular room — its size shows while you drag',
   poly: 'Click each corner · click the first one again or press Enter to close · Esc cancels',
-  wall: 'Click to chain wall segments · Enter or double-click to finish · Esc cancels',
+  wall: 'Click to chain walls · Enter to finish · then set Starts at / Height on the right for a half wall or a beam',
   door: 'Click a wall to drop a door, then drag it along the wall',
   window: 'Click a wall to drop a window, then set its sill height on the right',
   column: 'Click to drop a column · set its footprint, base and height on the right',

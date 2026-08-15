@@ -229,6 +229,10 @@ export function starterProject(): Project {
   addColumn(floor, 4.75, -2.55, { shape: 'round', w: 0.32, d: 0.32, name: 'Terrace column' })
   addColumn(floor, 8.55, 4.5, { w: 0.35, d: 0.35, name: 'Service duct' })
 
+  // a half wall screening the shower: starts on the floor, stops at 1.20 m
+  const halfWall = addWall(floor, addPoint(floor, 6.4, 6.6), addPoint(floor, 6.4, 5.35), 0.1)
+  halfWall.height = 1.2
+
   // a beam crossing the living room: hangs from the ceiling, you walk under it
   const beam = addWall(floor, addPoint(floor, 0, 2.3), addPoint(floor, 5.2, 2.3), 0.25)
   beam.base = 2.25
