@@ -169,7 +169,55 @@ export function addColumn(floor: Floor, x: number, y: number, patch: Partial<Col
  * duplicates, so a room built against a longer wall shares one wall with it
  * instead of drawing a second one on top.
  */
+/** Throws away geometry that cannot mean anything: zero-length walls, corners
+ *  repeated in a room outline, openings whose wall has gone. */
+export function sanitizeFloor(floor: Floor, weldTolerance = 0.005) {
+  // two corners at the same spot are one corner — this is what leaves
+  // zero-length walls and doubled-up outlines behind after heavy editing
+  const merged = new Map<ID, ID>()
+  for (let i = 0; i < floor.points.length; i++) {
+    const a = floor.points[i]
+    if (merged.has(a.id)) continue
+    for (let j = i + 1; j < floor.points.length; j++) {
+      const b = floor.points[j]
+      if (merged.has(b.id)) continue
+      if (dist(a, b) <= weldTolerance) merged.set(b.id, a.id)
+    }
+  }
+  if (merged.size) {
+    const to = (id: ID) => merged.get(id) ?? id
+    for (const w of floor.walls) {
+      w.a = to(w.a)
+      w.b = to(w.b)
+    }
+    for (const r of floor.rooms) r.loop = r.loop.map(to)
+    floor.points = floor.points.filter((p) => !merged.has(p.id))
+  }
+
+  const pts = pointMap(floor)
+  floor.walls = floor.walls.filter((w) => {
+    if (w.a === w.b) return false
+    const a = pts.get(w.a)
+    const b = pts.get(w.b)
+    return !!a && !!b && dist(a, b) > 1e-4
+  })
+  const wallIds = new Set(floor.walls.map((w) => w.id))
+  floor.openings = floor.openings.filter((o) => wallIds.has(o.wallId))
+  for (const room of floor.rooms) {
+    const loop: string[] = []
+    for (const id of room.loop) {
+      if (loop[loop.length - 1] === id) continue
+      if (!pts.has(id)) continue
+      loop.push(id)
+    }
+    while (loop.length > 1 && loop[0] === loop[loop.length - 1]) loop.pop()
+    room.loop = loop
+  }
+  floor.rooms = floor.rooms.filter((r) => new Set(r.loop).size >= 3)
+}
+
 export function tidyWalls(floor: Floor, tolerance = 0.012) {
+  sanitizeFloor(floor)
   for (let pass = 0; pass < 200; pass++) {
     const pts = pointMap(floor)
     let split = false
@@ -205,6 +253,8 @@ export function tidyWalls(floor: Floor, tolerance = 0.012) {
     }
     if (!split) break
   }
+
+  sanitizeFloor(floor)
 
   // two walls between the same pair of corners are one wall
   const seen = new Map<string, Wall>()

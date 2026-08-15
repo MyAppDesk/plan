@@ -25,6 +25,7 @@ import {
   addWall,
   adoptEnclosedRooms,
   emptyFloor,
+  sanitizeFloor,
   tidyWalls as tidyWallsIn,
 } from '../lib/build'
 import { generateHome } from '../lib/templates'
@@ -175,6 +176,12 @@ export function normalizeSite(raw: Site | Record<string, unknown>): Site {
 }
 
 export function normalizeProject(p: Project): Project {
+  const cleaned = normalizeProjectShape(p)
+  for (const f of cleaned.floors) sanitizeFloor(f)
+  return cleaned
+}
+
+function normalizeProjectShape(p: Project): Project {
   return {
     version: 3,
     name: p.name ?? 'Untitled',
